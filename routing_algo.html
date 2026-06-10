@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<title>Distance Vector vs Link State</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+  h1 { text-align: center; padding: 20px; font-size: 1.4em; color: #7dd3fc; letter-spacing: 1px; }
+  .tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+  .tab { padding: 8px 28px; border-radius: 20px; border: 2px solid #334155; background: #1e293b; color: #94a3b8; cursor: pointer; font-size: 0.95em; transition: all 0.2s; }
+  .tab.active { background: #0ea5e9; border-color: #0ea5e9; color: #fff; font-weight: 600; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .layout { display: flex; gap: 18px; padding: 0 20px 20px; flex-wrap: wrap; }
+  canvas { border-radius: 12px; background: #1e293b; flex-shrink: 0; }
+  .side { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 12px; }
+  .card { background: #1e293b; border-radius: 10px; padding: 14px; border: 1px solid #334155; }
+  .card h3 { font-size: 0.85em; color: #7dd3fc; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  button { padding: 7px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.88em; font-weight: 600; transition: all 0.15s; }
+  .btn-primary { background: #0ea5e9; color: #fff; }
+  .btn-primary:hover { background: #0284c7; }
+  .btn-secondary { background: #334155; color: #cbd5e1; }
+  .btn-secondary:hover { background: #475569; }
+  .btn-danger { background: #dc2626; color: #fff; }
+  .btn-danger:hover { background: #b91c1c; }
+  .log { font-size: 0.78em; font-family: 'Courier New', monospace; max-height: 200px; overflow-y: auto; background: #0f172a; border-radius: 8px; padding: 10px; border: 1px solid #1e293b; }
+  .log div { padding: 2px 0; border-bottom: 1px solid #1e293b11; }
+  .log .info { color: #7dd3fc; }
+  .log .send { color: #86efac; }
+  .log .update { color: #fbbf24; }
+  .log .converge { color: #a78bfa; font-weight: bold; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.78em; }
+  th { background: #0f172a; color: #7dd3fc; padding: 5px 8px; text-align: center; }
+  td { padding: 4px 8px; text-align: center; border-bottom: 1px solid #1e293b; color: #cbd5e1; }
+  td.changed { color: #fbbf24; font-weight: bold; }
+  td.best { color: #86efac; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.78em; }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .step-info { font-size: 0.82em; color: #94a3b8; line-height: 1.5; }
+  .highlight { color: #fbbf24; font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: #0ea5e9; }
+  label { font-size: 0.8em; color: #94a3b8; }
+  .speed-row { display: flex; align-items: center; gap: 10px; }
+</style>
+</head>
+<body>
+<h1>🌐 Distance Vector vs Link State — Interaktívna Vizualizácia</h1>
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('dv')">Distance Vector (Bellman-Ford)</div>
+  <div class="tab" onclick="switchTab('ls')">Link State (Dijkstra)</div>
+</div>
+
+<!-- DISTANCE VECTOR -->
+<div id="panel-dv" class="panel active">
+  <div class="layout">
+    <canvas id="canvas-dv" width="440" height="340"></canvas>
+    <div class="side">
+      <div class="card">
+        <h3>Ovládanie</h3>
+        <div class="controls">
+          <button class="btn-primary" onclick="dvStep()">⏭ Krok</button>
+          <button class="btn-primary" onclick="dvAuto()">▶ Auto</button>
+          <button class="btn-secondary" onclick="dvReset()">↺ Reset</button>
+          <button class="btn-danger" onclick="dvBreakLink()">✂ Prerušiť linku</button>
+        </div>
+        <div class="speed-row" style="margin-top:10px">
+          <label>Rýchlosť:</label>
+          <input type="range" id="dv-speed" min="200" max="2000" value="900" style="width:120px">
+        </div>
+      </div>
+      <div class="card">
+        <h3>Stav simsulace</h3>
+        <div class="step-info" id="dv-stepinfo">Stlač <span class="highlight">Krok</span> alebo <span class="highlight">Auto</span> pre spustenie.</div>
+      </div>
+      <div class="card">
+        <h3>Tabuľka vzdialeností (Distance Vectors)</h3>
+        <div class="table-wrap" id="dv-table"></div>
+      </div>
+      <div class="card">
+        <h3>Log udalostí</h3>
+        <div class="log" id="dv-log"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LINK STATE -->
+<div id="panel-ls" class="panel">
+  <div class="layout">
+    <canvas id="canvas-ls" width="440" height="340"></canvas>
+    <div class="side">
+      <div class="card">
+        <h3>Ovládanie</h3>
+        <div class="controls">
+          <button class="btn-primary" onclick="lsStep()">⏭ Krok</button>
+          <button class="btn-primary" onclick="lsAuto()">▶ Auto</button>
+          <button class="btn-secondary" onclick="lsReset()">↺ Reset</button>
+          <button class="btn-danger" onclick="lsBreakLink()">✂ Prerušiť linku</button>
+        </div>
+        <div class="speed-row" style="margin-top:10px">
+          <label>Rýchlosť:</label>
+          <input type="range" id="ls-speed" min="200" max="2000" value="900" style="width:120px">
+        </div>
+      </div>
+      <div class="card">
+        <h3>Stav simulácie</h3>
+        <div class="step-info" id="ls-stepinfo">Stlač <span class="highlight">Krok</span> alebo <span class="highlight">Auto</span> pre spustenie.</div>
+      </div>
+      <div class="card">
+        <h3>Dijkstrova tabuľka (z uzla A)</h3>
+        <div class="table-wrap" id="ls-table"></div>
+      </div>
+      <div class="card">
+        <h3>Log udalostí</h3>
+        <div class="log" id="ls-log"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== SHARED GRAPH TOPOLOGY =====
+// Nodes: A, B, C, D, E
+const NODE_NAMES = ['A','B','C','D','E'];
+const NODE_POS = {
+  A: [80,  170],
+  B: [200,  60],
+  C: [360,  90],
+  D: [380, 250],
+  E: [200, 290]
+};
+const NODE_COLORS = {
+  A:'#f87171', B:'#60a5fa', C:'#34d399', D:'#fbbf24', E:'#c084fc'
+};
+
+function initEdges() {
+  return [
+    {a:'A',b:'B',w:2, broken:false},
+    {a:'A',b:'E',w:4, broken:false},
+    {a:'B',b:'C',w:3, broken:false},
+    {a:'B',b:'E',w:1, broken:false},
+    {a:'C',b:'D',w:2, broken:false},
+    {a:'D',b:'E',w:5, broken:false},
+  ];
+}
+
+function drawGraph(canvasId, edges, highlight={}, packets=[]) {
+  const c = document.getElementById(canvasId);
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+
+  // Edges
+  for(const e of edges) {
+    const [ax,ay] = NODE_POS[e.a];
+    const [bx,by] = NODE_POS[e.b];
+    ctx.beginPath();
+    ctx.moveTo(ax,ay); ctx.lineTo(bx,by);
+    if(e.broken) {
+      ctx.setLineDash([6,5]);
+      ctx.strokeStyle='#dc2626';
+      ctx.lineWidth=2;
+    } else {
+      ctx.setLineDash([]);
+      const key = [e.a,e.b].sort().join('-');
+      if(highlight.edge===key) {
+        ctx.strokeStyle='#fbbf24';
+        ctx.lineWidth=3.5;
+      } else {
+        ctx.strokeStyle='#334155';
+        ctx.lineWidth=2.5;
+      }
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Weight label
+    const mx=(ax+bx)/2, my=(ay+by)/2;
+    ctx.fillStyle=e.broken?'#dc2626':'#64748b';
+    ctx.font='bold 12px Segoe UI';
+    ctx.textAlign='center';
+    ctx.fillText(e.broken?'∞':e.w, mx+6, my-5);
+  }
+
+  // Packets (animated messages)
+  for(const p of packets) {
+    const [ax,ay] = NODE_POS[p.from];
+    const [bx,by] = NODE_POS[p.to];
+    const t = p.t;
+    const px = ax+(bx-ax)*t, py = ay+(by-ay)*t;
+    ctx.beginPath();
+    ctx.arc(px,py,7,0,Math.PI*2);
+    ctx.fillStyle='#fbbf24';
+    ctx.fill();
+    ctx.strokeStyle='#fff';
+    ctx.lineWidth=1.5;
+    ctx.stroke();
+  }
+
+  // Nodes
+  for(const n of NODE_NAMES) {
+    const [x,y] = NODE_POS[n];
+    ctx.beginPath();
+    ctx.arc(x,y,22,0,Math.PI*2);
+    ctx.fillStyle = highlight.node===n ? '#fff' : NODE_COLORS[n];
+    ctx.fill();
+    ctx.strokeStyle = highlight.node===n ? '#fbbf24' : '#0f1117';
+    ctx.lineWidth=3;
+    ctx.stroke();
+    ctx.fillStyle='#0f1117';
+    ctx.font='bold 15px Segoe UI';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText(n,x,y);
+    ctx.textBaseline='alphabetic';
+  }
+}
+
+function addLog(logId, msg, cls='info') {
+  const el=document.getElementById(logId);
+  const d=document.createElement('div');
+  d.className=cls;
+  d.textContent=msg;
+  el.prepend(d);
+  while(el.children.length>40) el.removeChild(el.lastChild);
+}
+
+// ===========================
+// DISTANCE VECTOR SIMULATION
+// ===========================
+let dvEdges, dvDist, dvNext, dvIteration, dvSubstep, dvAutoTimer, dvConverged, dvBroken;
+
+function dvInit() {
+  dvEdges = initEdges();
+  dvBroken = false;
+  dvDist = {};
+  dvNext = {};
+  for(const n of NODE_NAMES) {
+    dvDist[n] = {};
+    dvNext[n] = {};
+    for(const m of NODE_NAMES) {
+      dvDist[n][m] = n===m ? 0 : Infinity;
+      dvNext[n][m] = n===m ? n : null;
+    }
+  }
+  // Init from direct links
+  for(const e of dvEdges) {
+    dvDist[e.a][e.b] = e.w;
+    dvDist[e.b][e.a] = e.w;
+    dvNext[e.a][e.b] = e.b;
+    dvNext[e.b][e.a] = e.a;
+  }
+  dvIteration = 0;
+  dvSubstep = 0;
+  dvConverged = false;
+  dvAutoTimer = null;
+}
+
+function dvGetAdj(n) {
+  return dvEdges.filter(e=>!e.broken&&(e.a===n||e.b===n)).map(e=>e.a===n?e.b:e.a);
+}
+
+function dvGetW(a,b) {
+  const e=dvEdges.find(x=>!x.broken&&((x.a===a&&x.b===b)||(x.a===b&&x.b===a)));
+  return e?e.w:Infinity;
+}
+
+function dvStep() {
+  if(dvConverged && !dvBroken) {
+    addLog('dv-log','✅ Sieť je skonvergovaná.','converge');
+    return;
+  }
+  dvBroken = false;
+  dvIteration++;
+  let changed = false;
+  for(const u of NODE_NAMES) {
+    for(const v of NODE_NAMES) {
+      if(u===v) continue;
+      for(const w of dvGetAdj(u)) {
+        const via = dvGetW(u,w) + dvDist[w][v];
+        if(via < dvDist[u][v]) {
+          dvDist[u][v] = via;
+          dvNext[u][v] = w;
+          changed = true;
+          addLog('dv-log',`↻ ${u}→${v} via ${w} = ${via}`,'update');
+        }
+      }
+    }
+  }
+  if(!changed) {
+    dvConverged = true;
+    addLog('dv-log',`🎉 KONVERGENCIA po ${dvIteration} iteráciách!`,'converge');
+    document.getElementById('dv-stepinfo').innerHTML=`<span class="highlight">✅ Konvergovaná!</span> Všetky uzly poznajú najkratšie cesty.`;
+  } else {
+    addLog('dv-log',`--- Iterácia ${dvIteration} ---`,'info');
+    document.getElementById('dv-stepinfo').innerHTML=`Iterácia <span class="highlight">${dvIteration}</span>: uzly si vymenili tabuľky so susedmi.`;
+  }
+  dvRenderTable();
+  drawGraph('canvas-dv', dvEdges);
+}
+
+function dvAuto() {
+  if(dvAutoTimer) { clearInterval(dvAutoTimer); dvAutoTimer=null; return; }
+  const speed = () => 2200 - parseInt(document.getElementById('dv-speed').value);
+  dvAutoTimer = setInterval(()=>{
+    dvStep();
+    if(dvConverged) { clearInterval(dvAutoTimer); dvAutoTimer=null; }
+  }, speed());
+}
+
+function dvReset() {
+  if(dvAutoTimer) { clearInterval(dvAutoTimer); dvAutoTimer=null; }
+  dvInit();
+  document.getElementById('dv-log').innerHTML='';
+  document.getElementById('dv-stepinfo').innerHTML='Stlač <span class="highlight">Krok</span> alebo <span class="highlight">Auto</span> pre spustenie.';
+  dvRenderTable();
+  drawGraph('canvas-dv', dvEdges);
+}
+
+function dvBreakLink() {
+  // Break A-B link
+  const e = dvEdges.find(x=>x.a==='A'&&x.b==='B');
+  if(e && !e.broken) {
+    e.broken = true;
+    dvDist['A']['B'] = Infinity; dvNext['A']['B'] = null;
+    dvDist['B']['A'] = Infinity; dvNext['B']['A'] = null;
+    dvConverged = false;
+    dvBroken = true;
+    addLog('dv-log','✂ Linka A-B prerušená! Count-to-infinity možný!','update');
+    document.getElementById('dv-stepinfo').innerHTML=`<span class="highlight">✂ Linka A-B prerušená.</span> Sleduj count-to-infinity efekt!`;
+    dvRenderTable();
+    drawGraph('canvas-dv', dvEdges);
+  }
+}
+
+function dvRenderTable() {
+  const INF='∞';
+  let html='<table><tr><th>Z\\ Do</th>';
+  for(const n of NODE_NAMES) html+=`<th>${n}</th>`;
+  html+='</tr>';
+  for(const u of NODE_NAMES) {
+    html+=`<tr><td style="color:${NODE_COLORS[u]};font-weight:bold">${u}</td>`;
+    for(const v of NODE_NAMES) {
+      const d=dvDist[u][v];
+      html+=`<td class="${d===0?'best':d===Infinity?'':'changed'}">${d===Infinity?INF:d}</td>`;
+    }
+    html+='</tr>';
+  }
+  html+='</table>';
+  document.getElementById('dv-table').innerHTML=html;
+}
+
+// ===========================
+// LINK STATE SIMULATION
+// ===========================
+let lsEdges, lsLSDB, lsPhase, lsFlooded, lsDijkDone, lsDist, lsPrev, lsVisited, lsAutoTimer, lsBroken;
+
+function lsInit() {
+  lsEdges = initEdges();
+  lsBroken = false;
+  lsLSDB = {}; // Link state database: what each router knows
+  for(const n of NODE_NAMES) lsLSDB[n] = null;
+  lsPhase = 'flood'; // flood -> dijkstra
+  lsFlooded = [];
+  lsDijkDone = false;
+  lsDist = {};
+  lsPrev = {};
+  lsVisited = new Set();
+  lsAutoTimer = null;
+}
+
+function lsGetAdj(n) {
+  return lsEdges.filter(e=>!e.broken&&(e.a===n||e.b===n)).map(e=>({
+    node: e.a===n?e.b:e.a, w: e.w
+  }));
+}
+
+function lsStep() {
+  if(lsPhase==='flood') {
+    // Each router floods its LSA
+    const remaining = NODE_NAMES.filter(n=>!lsFlooded.includes(n));
+    if(remaining.length===0) {
+      lsPhase='dijkstra';
+      addLog('ls-log','📡 Flooding hotový. Spúšťam Dijkstru z A...','info');
+      document.getElementById('ls-stepinfo').innerHTML=`<span class="highlight">Flooding dokončený.</span> Každý uzol pozná celú topológiu. Spúšťam Dijkstru...`;
+      // Init Dijkstra
+      for(const n of NODE_NAMES) { lsDist[n]=Infinity; lsPrev[n]=null; }
+      lsDist['A']=0;
+      lsVisited=new Set();
+      lsRenderTable();
+      drawGraph('canvas-ls', lsEdges, {});
+      return;
+    }
+    const n = remaining[0];
+    lsFlooded.push(n);
+    lsLSDB[n] = lsGetAdj(n);
+    addLog('ls-log',`📡 ${n} posiela LSA (link-state advertisement)`,'send');
+    document.getElementById('ls-stepinfo').innerHTML=`Uzol <span class="highlight" style="color:${NODE_COLORS[n]}">${n}</span> flooduje svoju LSA (lokálne linky) celej sieti.`;
+    drawGraph('canvas-ls', lsEdges, {node:n});
+    lsRenderTable();
+    return;
+  }
+  if(lsPhase==='dijkstra') {
+    if(lsDijkDone) {
+      addLog('ls-log','✅ Dijkstra hotový, všetky cesty nájdené.','converge');
+      return;
+    }
+    // Pick unvisited with min dist
+    let u=null, minD=Infinity;
+    for(const n of NODE_NAMES) {
+      if(!lsVisited.has(n) && lsDist[n]<minD) { minD=lsDist[n]; u=n; }
+    }
+    if(u===null) { lsDijkDone=true; addLog('ls-log','🎉 KONVERGENCIA - Dijkstra dokončená!','converge');
+      document.getElementById('ls-stepinfo').innerHTML=`<span class="highlight">✅ Konvergovaná!</span> Dijkstra dokončil výpočet najkratších ciest z A.`;
+      lsRenderTable(); return; }
+    lsVisited.add(u);
+    addLog('ls-log',`🔍 Spracovávam uzol ${u} (d=${minD})`,'update');
+    document.getElementById('ls-stepinfo').innerHTML=`Dijkstra: spracovávam <span class="highlight" style="color:${NODE_COLORS[u]}">${u}</span> (vzdialenosť=${minD})`;
+    for(const {node:v, w} of lsGetAdj(u)) {
+      if(lsVisited.has(v)) continue;
+      const alt=lsDist[u]+w;
+      if(alt<lsDist[v]) {
+        lsDist[v]=alt;
+        lsPrev[v]=u;
+        addLog('ls-log',`  ↻ dist[${v}] = ${alt} cez ${u}`,'update');
+      }
+    }
+    drawGraph('canvas-ls', lsEdges, {node:u});
+    lsRenderTable();
+  }
+}
+
+function lsAuto() {
+  if(lsAutoTimer) { clearInterval(lsAutoTimer); lsAutoTimer=null; return; }
+  const speed = () => 2200 - parseInt(document.getElementById('ls-speed').value);
+  lsAutoTimer = setInterval(()=>{
+    lsStep();
+    if(lsDijkDone) { clearInterval(lsAutoTimer); lsAutoTimer=null; }
+  }, speed());
+}
+
+function lsReset() {
+  if(lsAutoTimer) { clearInterval(lsAutoTimer); lsAutoTimer=null; }
+  lsInit();
+  document.getElementById('ls-log').innerHTML='';
+  document.getElementById('ls-stepinfo').innerHTML='Stlač <span class="highlight">Krok</span> alebo <span class="highlight">Auto</span> pre spustenie.';
+  lsRenderTable();
+  drawGraph('canvas-ls', lsEdges);
+}
+
+function lsBreakLink() {
+  const e = lsEdges.find(x=>x.a==='A'&&x.b==='B');
+  if(e && !e.broken) {
+    e.broken=true;
+    lsBroken=true;
+    lsPhase='flood';
+    lsFlooded=[];
+    lsDijkDone=false;
+    addLog('ls-log','✂ Linka A-B prerušená! Uzly okamžite refloodujú LSA.','update');
+    document.getElementById('ls-stepinfo').innerHTML=`<span class="highlight">✂ Linka A-B prerušená.</span> Uzly okamžite pošlú novú LSA - žiadny count-to-infinity!`;
+    lsRenderTable();
+    drawGraph('canvas-ls', lsEdges);
+  }
+}
+
+function lsRenderTable() {
+  const INF='∞';
+  // Show Dijkstra table from A
+  let html='<table><tr><th>Uzol</th><th>Dist od A</th><th>Cez</th><th>Cesta</th></tr>';
+  for(const n of NODE_NAMES) {
+    const d=lsDist[n]!==undefined?lsDist[n]:Infinity;
+    const prev=lsPrev[n]!==undefined?lsPrev[n]:null;
+    const visited=lsVisited&&lsVisited.has(n);
+    // Reconstruct path
+    let path='';
+    if(d!==Infinity && d!==undefined) {
+      let cur=n; let parts=[];
+      while(cur) { parts.unshift(cur); cur=lsPrev[cur]; }
+      path=parts.join('→');
+    }
+    html+=`<tr>
+      <td style="color:${NODE_COLORS[n]};font-weight:bold">${n}</td>
+      <td class="${visited?'best':d===Infinity?'':'changed'}">${d===Infinity?INF:d}</td>
+      <td>${prev||'-'}</td>
+      <td style="font-size:0.85em;color:#94a3b8">${path||'-'}</td>
+    </tr>`;
+  }
+  html+='</table>';
+  // Also show flood status
+  html+=`<div style="margin-top:8px;font-size:0.75em;color:#64748b">LSA prijaté od: ${lsFlooded.length===0?'—':lsFlooded.join(', ')}</div>`;
+  document.getElementById('ls-table').innerHTML=html;
+}
+
+function switchTab(which) {
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['dv','ls'][i]===which));
+  document.getElementById('panel-dv').classList.toggle('active',which==='dv');
+  document.getElementById('panel-ls').classList.toggle('active',which==='ls');
+}
+
+// Init
+dvInit(); dvRenderTable(); drawGraph('canvas-dv', dvEdges);
+lsInit(); lsRenderTable(); drawGraph('canvas-ls', lsEdges);
+</script>
+</body>
+</html>
