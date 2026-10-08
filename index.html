@@ -2,496 +2,980 @@
 <html lang="sk">
 <head>
 <meta charset="UTF-8">
-<title>Distance Vector vs Link State</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smerovacie algoritmy – DV, LS, PV</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
-  h1 { text-align: center; padding: 20px; font-size: 1.4em; color: #7dd3fc; letter-spacing: 1px; }
-  .tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
-  .tab { padding: 8px 28px; border-radius: 20px; border: 2px solid #334155; background: #1e293b; color: #94a3b8; cursor: pointer; font-size: 0.95em; transition: all 0.2s; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+  h1 { text-align: center; padding: 20px 16px 14px; font-size: 1.4em; color: #7dd3fc; letter-spacing: 1px; }
+  .tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; padding: 0 16px; }
+  .tab { padding: 8px 26px; border-radius: 20px; border: 2px solid #334155; background: #1e293b; color: #94a3b8; cursor: pointer; font-size: 0.95em; font-family: inherit; transition: all 0.2s; }
+  .tab:hover { border-color: #0ea5e9; color: #e2e8f0; }
   .tab.active { background: #0ea5e9; border-color: #0ea5e9; color: #fff; font-weight: 600; }
-  .panel { display: none; }
+  .panel { display: none; max-width: 1280px; margin: 0 auto; padding: 0 20px 24px; }
   .panel.active { display: block; }
-  .layout { display: flex; gap: 18px; padding: 0 20px 20px; flex-wrap: wrap; align-items: flex-start; }
-  canvas { border-radius: 12px; background: #1e293b; flex-shrink: 0; width: 440px; height: 340px; min-width: 440px; }
-  .side { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 12px; }
   .card { background: #1e293b; border-radius: 10px; padding: 14px; border: 1px solid #334155; }
-  .card h3 { font-size: 0.85em; color: #7dd3fc; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .controls { display: flex; gap: 8px; flex-wrap: wrap; }
-  button { padding: 7px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.88em; font-weight: 600; transition: all 0.15s; }
+  .card h3 { font-size: 0.8em; color: #7dd3fc; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .intro { margin-bottom: 16px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; justify-content: space-between; }
+  .intro-text { flex: 1; min-width: 260px; }
+  .intro h2 { font-size: 1.1em; color: #f1f5f9; margin-bottom: 4px; }
+  .intro h2 .algo { font-size: 0.75em; color: #94a3b8; font-weight: 400; margin-left: 6px; }
+  .intro p { font-size: 0.86em; color: #94a3b8; line-height: 1.5; }
+  .protos { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .protos span.lbl { font-size: 0.75em; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 2px; }
+  .chip { padding: 4px 12px; border-radius: 999px; background: #0f172a; border: 1px solid #0ea5e9; color: #7dd3fc; font-size: 0.82em; font-weight: 600; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 960px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  svg.net { width: 100%; height: auto; display: block; background: #0f172a; border-radius: 8px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.75em; color: #94a3b8; margin-top: 10px; }
+  .legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 5px; }
+  .legend i.dot { width: 10px; height: 10px; border: 2px solid; border-radius: 50%; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button.b { padding: 7px 14px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.86em; font-weight: 600; font-family: inherit; transition: all 0.15s; }
+  button.b:disabled { opacity: 0.4; cursor: default; }
   .btn-primary { background: #0ea5e9; color: #fff; }
-  .btn-primary:hover { background: #0284c7; }
+  .btn-primary:hover:not(:disabled) { background: #0284c7; }
   .btn-secondary { background: #334155; color: #cbd5e1; }
-  .btn-secondary:hover { background: #475569; }
-  .btn-danger { background: #dc2626; color: #fff; }
-  .btn-danger:hover { background: #b91c1c; }
-  .log { font-size: 0.78em; font-family: 'Courier New', monospace; max-height: 200px; overflow-y: auto; background: #0f172a; border-radius: 8px; padding: 10px; border: 1px solid #1e293b; }
-  .log div { padding: 2px 0; border-bottom: 1px solid #1e293b11; }
+  .btn-secondary:hover:not(:disabled) { background: #475569; }
+  .progress { flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 4px; font-size: 0.75em; color: #94a3b8; text-align: right; }
+  .bar { height: 5px; background: #0f172a; border-radius: 3px; overflow: hidden; }
+  .bar div { height: 100%; background: #0ea5e9; transition: width 0.25s; }
+  .phases { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .phase-btn { font-family: inherit; font-size: 0.75em; padding: 4px 10px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #94a3b8; cursor: pointer; }
+  .phase-btn:hover { border-color: #0ea5e9; color: #e2e8f0; }
+  .phase-btn.active { border-color: #fbbf24; color: #fbbf24; }
+  .speed { display: flex; align-items: center; gap: 6px; font-size: 0.75em; color: #94a3b8; }
+  .speed input { accent-color: #0ea5e9; width: 90px; }
+  .step-phase { font-size: 0.72em; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px; }
+  .step-title { font-size: 1.02em; color: #f1f5f9; margin-bottom: 8px; }
+  .step-text { font-size: 0.86em; color: #cbd5e1; line-height: 1.55; }
+  .step-text p + p, .step-text p + ul, .step-text ul + p { margin-top: 6px; }
+  .step-text ul { padding-left: 18px; }
+  .step-text li { margin: 2px 0; }
+  .step-text code, .mono { font-family: Consolas, 'Courier New', monospace; font-size: 0.95em; }
+  .step-text code { background: #0f172a; padding: 1px 5px; border-radius: 4px; color: #e2e8f0; }
+  .hl { color: #fbbf24; font-weight: 600; }
+  .ok { color: #86efac; font-weight: 600; }
+  .bad { color: #f87171; font-weight: 600; }
+  .muted { color: #64748b; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.78em; }
+  th { background: #0f172a; color: #7dd3fc; padding: 5px 8px; text-align: center; white-space: nowrap; }
+  td { padding: 4px 8px; text-align: center; border-bottom: 1px solid #263244; color: #cbd5e1; white-space: nowrap; }
+  td.l, th.l { text-align: left; }
+  td.changed { color: #fbbf24; font-weight: bold; background: #fbbf2414; }
+  td.best { color: #86efac; }
+  td.dead, tr.dead td { color: #475569; }
+  td .via { color: #64748b; font-size: 0.85em; margin-left: 3px; }
+  td.changed .via { color: #d6a72a; }
+  .path { font-family: Consolas, 'Courier New', monospace; }
+  .rib div { padding: 1px 0; }
+  .rib .star { color: #86efac; font-weight: 700; }
+  .rib .alt { color: #94a3b8; }
+  .log { font-size: 0.76em; font-family: Consolas, 'Courier New', monospace; max-height: 220px; overflow-y: auto; background: #0f172a; border-radius: 8px; padding: 10px; }
+  .log div { padding: 2px 0; }
+  .log .hdr { color: #64748b; margin-top: 4px; }
   .log .info { color: #7dd3fc; }
   .log .send { color: #86efac; }
   .log .update { color: #fbbf24; }
+  .log .err { color: #f87171; }
   .log .converge { color: #a78bfa; font-weight: bold; }
-  .table-wrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.78em; }
-  th { background: #0f172a; color: #7dd3fc; padding: 5px 8px; text-align: center; }
-  td { padding: 4px 8px; text-align: center; border-bottom: 1px solid #1e293b; color: #cbd5e1; }
-  td.changed { color: #fbbf24; font-weight: bold; }
-  td.best { color: #86efac; }
-  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.78em; }
-  .legend-item { display: flex; align-items: center; gap: 5px; }
-  .dot { width: 10px; height: 10px; border-radius: 50%; }
-  .step-info { font-size: 0.82em; color: #94a3b8; line-height: 1.5; }
-  .highlight { color: #fbbf24; font-weight: 600; }
-  input[type=range] { width: 100%; accent-color: #0ea5e9; }
-  label { font-size: 0.8em; color: #94a3b8; }
-  .speed-row { display: flex; align-items: center; gap: 10px; }
+  .hint { font-size: 0.72em; color: #475569; text-align: center; margin-top: 18px; }
+  /* svg */
+  .edge { stroke: #334155; stroke-width: 2.5; }
+  .edge.hl { stroke: #fbbf24; stroke-width: 4; }
+  .edge.tree { stroke: #22c55e; stroke-width: 4; }
+  .edge.down { stroke: #dc2626; stroke-width: 2; stroke-dasharray: 6 5; }
+  .wbox { fill: #0f172a; }
+  .wtxt { fill: #94a3b8; font: bold 12px 'Segoe UI', sans-serif; text-anchor: middle; dominant-baseline: central; }
+  .wtxt.down { fill: #dc2626; }
+  .node-shape { stroke: #0f1117; stroke-width: 3; }
+  .node.active .node-shape { stroke: #fbbf24; stroke-width: 4; }
+  .node.done .node-shape { stroke: #22c55e; stroke-width: 4; }
+  .node.down .node-shape { fill: #334155 !important; stroke: #dc2626; stroke-dasharray: 4 3; }
+  .node-txt { fill: #0f1117; font: bold 15px 'Segoe UI', sans-serif; text-anchor: middle; dominant-baseline: central; }
+  .node.down .node-txt { fill: #64748b; }
+  .note-box { fill: #0f172aee; stroke: #334155; }
+  .note-txt { fill: #e2e8f0; font: 11px Consolas, 'Courier New', monospace; text-anchor: middle; dominant-baseline: central; }
+  .pkt circle { stroke: #fff; stroke-width: 1.5; }
+  .pkt-box { fill: #0f172a; }
+  .pkt-txt { font: bold 10.5px Consolas, 'Courier New', monospace; text-anchor: middle; dominant-baseline: central; }
 </style>
 </head>
 <body>
-<h1>🌐 Distance Vector vs Link State — Interaktívna Vizualizácia</h1>
-<div class="tabs">
-  <div class="tab active" onclick="switchTab('dv')">Distance Vector (Bellman-Ford)</div>
-  <div class="tab" onclick="switchTab('ls')">Link State (Dijkstra)</div>
-</div>
-
-<!-- DISTANCE VECTOR -->
-<div id="panel-dv" class="panel active">
-  <div class="layout">
-    <canvas id="canvas-dv" width="440" height="340"></canvas>
-    <div class="side">
-      <div class="card">
-        <h3>Ovládanie</h3>
-        <div class="controls">
-          <button class="btn-primary" onclick="dvStep()">⏭ Krok</button>
-          <button class="btn-secondary" onclick="dvReset()">↺ Reset</button>
-        </div>
-      </div>
-      <div class="card">
-        <h3>Stav simsulace</h3>
-        <div class="step-info" id="dv-stepinfo">Stlač <span class="highlight">Krok</span> pre spustenie.</div>
-      </div>
-      <div class="card">
-        <h3>Tabuľka vzdialeností (Distance Vectors)</h3>
-        <div class="table-wrap" id="dv-table"></div>
-      </div>
-      <div class="card">
-        <h3>Log udalostí</h3>
-        <div class="log" id="dv-log"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- LINK STATE -->
-<div id="panel-ls" class="panel">
-  <div class="layout">
-    <canvas id="canvas-ls" width="440" height="340"></canvas>
-    <div class="side">
-      <div class="card">
-        <h3>Ovládanie</h3>
-        <div class="controls">
-          <button class="btn-primary" onclick="lsStep()">⏭ Krok</button>
-          <button class="btn-secondary" onclick="lsReset()">↺ Reset</button>
-        </div>
-  
-      <div class="card">
-        <h3>Stav simulácie</h3>
-        <div class="step-info" id="ls-stepinfo">Stlač <span class="highlight">Krok</span> alebo <span class="highlight">Auto</span> pre spustenie.</div>
-      </div>
-      <div class="card">
-        <h3>Dijkstrova tabuľka (z uzla A)</h3>
-        <div class="table-wrap" id="ls-table"></div>
-      </div>
-      <div class="card">
-        <h3>Log udalostí</h3>
-        <div class="log" id="ls-log"></div>
-      </div>
-    </div>
-  </div>
-</div>
+<h1>🌐 Smerovacie algoritmy — interaktívna vizualizácia</h1>
+<nav class="tabs" id="tabs"></nav>
+<main id="panels"></main>
+<p class="hint">Klávesy: ← / → krok späť / ďalej, medzerník = auto</p>
 
 <script>
-// ===== SHARED GRAPH TOPOLOGY =====
-// Nodes: A, B, C, D, E
-const NODE_NAMES = ['A','B','C','D','E'];
-const NODE_POS = {
-  A: [80,  170],
-  B: [200,  60],
-  C: [360,  90],
-  D: [380, 250],
-  E: [200, 290]
-};
-const NODE_COLORS = {
-  A:'#f87171', B:'#60a5fa', C:'#34d399', D:'#fbbf24', E:'#c084fc'
-};
+'use strict';
+// ============================================================
+//  Generic step-by-step visualiser
+// ============================================================
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const CHAR_W = 6.3; // approx. width of one monospace char at 10.5–11px
 
-function initEdges() {
-  return [
-    {a:'A',b:'B',w:2, broken:false},
-    {a:'A',b:'E',w:4, broken:false},
-    {a:'B',b:'C',w:3, broken:false},
-    {a:'B',b:'E',w:1, broken:false},
-    {a:'C',b:'D',w:2, broken:false},
-    {a:'D',b:'E',w:5, broken:false},
-  ];
+const PANELS = [];
+
+function panelHTML(cfg) {
+  return `
+  <section class="panel" id="panel-${cfg.id}">
+    <div class="card intro">
+      <div class="intro-text">
+        <h2>${cfg.title}<span class="algo">${cfg.algo}</span></h2>
+        <p>${cfg.desc}</p>
+      </div>
+      <div class="protos"><span class="lbl">Protokoly:</span>${cfg.protocols.map(p => `<span class="chip">${p}</span>`).join('')}</div>
+    </div>
+    <div class="layout">
+      <div class="col">
+        <div class="card">
+          <svg class="net" viewBox="0 0 520 360" role="img" aria-label="Topológia siete"></svg>
+          <div class="legend">${cfg.legend}</div>
+        </div>
+        <div class="card">
+          <div class="controls">
+            <button class="b btn-secondary" data-act="first" title="Na začiatok">⏮</button>
+            <button class="b btn-secondary" data-act="prev">◀ Späť</button>
+            <button class="b btn-primary" data-act="next">Ďalej ▶</button>
+            <button class="b btn-secondary" data-act="auto">▶ Auto</button>
+            <label class="speed">rýchlosť <input type="range" min="0" max="2000" value="1000" data-act="speed"></label>
+            <div class="progress"><span class="pos"></span><div class="bar"><div></div></div></div>
+          </div>
+          <div class="phases"></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <div class="step-phase"></div>
+          <div class="step-title"></div>
+          <div class="step-text"></div>
+        </div>
+        <div class="card"><h3 class="table-title"></h3><div class="table-wrap"></div></div>
+        <div class="card"><h3>Log udalostí</h3><div class="log"></div></div>
+      </div>
+    </div>
+  </section>`;
 }
 
-function drawGraph(canvasId, edges, highlight={}, packets=[]) {
-  const c = document.getElementById(canvasId);
-  const ctx = c.getContext('2d');
-  ctx.clearRect(0,0,c.width,c.height);
-
-  // Edges
-  for(const e of edges) {
-    const [ax,ay] = NODE_POS[e.a];
-    const [bx,by] = NODE_POS[e.b];
-    ctx.beginPath();
-    ctx.moveTo(ax,ay); ctx.lineTo(bx,by);
-    if(e.broken) {
-      ctx.setLineDash([6,5]);
-      ctx.strokeStyle='#dc2626';
-      ctx.lineWidth=2;
-    } else {
-      ctx.setLineDash([]);
-      const key = [e.a,e.b].sort().join('-');
-      if(highlight.edge===key) {
-        ctx.strokeStyle='#fbbf24';
-        ctx.lineWidth=3.5;
-      } else {
-        ctx.strokeStyle='#334155';
-        ctx.lineWidth=2.5;
+class Viz {
+  constructor(cfg) {
+    this.cfg = cfg;
+    this.steps = cfg.steps;
+    this.i = 0;
+    this.timer = null;
+    this.anim = null;
+    const r = this.root = document.getElementById('panel-' + cfg.id);
+    this.svg = r.querySelector('svg');
+    this.el = {
+      phase: r.querySelector('.step-phase'), title: r.querySelector('.step-title'), text: r.querySelector('.step-text'),
+      tableTitle: r.querySelector('.table-title'), table: r.querySelector('.table-wrap'), log: r.querySelector('.log'),
+      pos: r.querySelector('.pos'), bar: r.querySelector('.bar div'), phases: r.querySelector('.phases'),
+      prev: r.querySelector('[data-act=prev]'), next: r.querySelector('[data-act=next]'),
+      first: r.querySelector('[data-act=first]'), auto: r.querySelector('[data-act=auto]'), speed: r.querySelector('[data-act=speed]'),
+    };
+    this.el.prev.onclick = () => { this.stop(); this.go(this.i - 1); };
+    this.el.next.onclick = () => { this.stop(); this.go(this.i + 1); };
+    this.el.first.onclick = () => { this.stop(); this.go(0); };
+    this.el.auto.onclick = () => this.toggleAuto();
+    this.el.speed.oninput = () => { if (this.timer) { this.stop(); this.toggleAuto(); } };
+    // phase jump buttons
+    const seen = new Set();
+    this.phaseStarts = [];
+    this.steps.forEach((s, k) => { if (!seen.has(s.phase)) { seen.add(s.phase); this.phaseStarts.push({ phase: s.phase, k }); } });
+    this.el.phases.innerHTML = this.phaseStarts.map((p, n) => `<button class="phase-btn" data-k="${p.k}">${n + 1}. ${esc(p.phase)}</button>`).join('');
+    this.el.phases.querySelectorAll('.phase-btn').forEach(b => b.onclick = () => { this.stop(); this.go(+b.dataset.k); });
+    this.go(0);
+  }
+  go(i) {
+    this.i = Math.max(0, Math.min(this.steps.length - 1, i));
+    this.render();
+  }
+  toggleAuto() {
+    if (this.timer) { this.stop(); return; }
+    if (this.i >= this.steps.length - 1) this.go(0);
+    const delay = 3200 - +this.el.speed.value * 1.3;
+    this.el.auto.textContent = '⏸ Pauza';
+    this.timer = setInterval(() => {
+      if (this.i >= this.steps.length - 1) { this.stop(); return; }
+      this.go(this.i + 1);
+    }, delay);
+  }
+  stop() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    this.el.auto.textContent = '▶ Auto';
+  }
+  render() {
+    const s = this.steps[this.i], n = this.steps.length;
+    this.el.phase.textContent = s.phase;
+    this.el.title.innerHTML = s.title;
+    this.el.text.innerHTML = s.text;
+    this.el.tableTitle.textContent = s.tableTitle || '';
+    this.el.table.innerHTML = s.table || '';
+    this.el.pos.textContent = `Krok ${this.i + 1} / ${n}`;
+    this.el.bar.style.width = ((this.i + 1) / n * 100) + '%';
+    this.el.prev.disabled = this.el.first.disabled = this.i === 0;
+    this.el.next.disabled = this.i === n - 1;
+    let curPhase = 0;
+    this.phaseStarts.forEach((p, k) => { if (p.k <= this.i) curPhase = k; });
+    this.el.phases.querySelectorAll('.phase-btn').forEach((b, k) => b.classList.toggle('active', k === curPhase));
+    // cumulative log, newest first
+    let log = '';
+    for (let k = this.i; k >= 0; k--) {
+      const st = this.steps[k];
+      if (!st.log || !st.log.length) continue;
+      log += st.log.map(l => `<div class="${l[0]}">${esc(l[1])}</div>`).join('');
+      log += `<div class="hdr">— krok ${k + 1}: ${esc(st.plainTitle || '')}</div>`;
+    }
+    this.el.log.innerHTML = log;
+    this.draw(s);
+  }
+  draw(s) {
+    const { pos, colors, shape } = this.cfg;
+    let h = '';
+    for (const e of s.edges) {
+      const [x1, y1] = pos[e.a], [x2, y2] = pos[e.b];
+      h += `<line class="edge ${e.state || ''}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+      const label = e.state === 'down' ? '✕' : (e.w != null ? String(e.w) : null);
+      if (label != null) {
+        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+        h += `<rect class="wbox" x="${mx - 10}" y="${my - 9}" width="20" height="18" rx="4"/>`;
+        h += `<text class="wtxt ${e.state === 'down' ? 'down' : ''}" x="${mx}" y="${my}">${label}</text>`;
       }
     }
-    ctx.stroke();
-    ctx.setLineDash([]);
-    // Weight label
-    const mx=(ax+bx)/2, my=(ay+by)/2;
-    ctx.fillStyle=e.broken?'#dc2626':'#64748b';
-    ctx.font='bold 12px Segoe UI';
-    ctx.textAlign='center';
-    ctx.fillText(e.broken?'∞':e.w, mx+6, my-5);
-  }
-
-  // Packets (animated messages)
-  for(const p of packets) {
-    const [ax,ay] = NODE_POS[p.from];
-    const [bx,by] = NODE_POS[p.to];
-    const t = p.t;
-    const px = ax+(bx-ax)*t, py = ay+(by-ay)*t;
-    ctx.beginPath();
-    ctx.arc(px,py,7,0,Math.PI*2);
-    ctx.fillStyle='#fbbf24';
-    ctx.fill();
-    ctx.strokeStyle='#fff';
-    ctx.lineWidth=1.5;
-    ctx.stroke();
-  }
-
-  // Nodes
-  for(const n of NODE_NAMES) {
-    const [x,y] = NODE_POS[n];
-    ctx.beginPath();
-    ctx.arc(x,y,22,0,Math.PI*2);
-    ctx.fillStyle = highlight.node===n ? '#fff' : NODE_COLORS[n];
-    ctx.fill();
-    ctx.strokeStyle = highlight.node===n ? '#fbbf24' : '#0f1117';
-    ctx.lineWidth=3;
-    ctx.stroke();
-    ctx.fillStyle='#0f1117';
-    ctx.font='bold 15px Segoe UI';
-    ctx.textAlign='center';
-    ctx.textBaseline='middle';
-    ctx.fillText(n,x,y);
-    ctx.textBaseline='alphabetic';
-  }
-}
-
-function addLog(logId, msg, cls='info') {
-  const el=document.getElementById(logId);
-  const d=document.createElement('div');
-  d.className=cls;
-  d.textContent=msg;
-  el.prepend(d);
-  while(el.children.length>40) el.removeChild(el.lastChild);
-}
-
-// ===========================
-// DISTANCE VECTOR SIMULATION
-// ===========================
-let dvEdges, dvDist, dvNext, dvIteration, dvSubstep, dvAutoTimer, dvConverged, dvBroken;
-
-function dvInit() {
-  dvEdges = initEdges();
-  dvBroken = false;
-  dvDist = {};
-  dvNext = {};
-  for(const n of NODE_NAMES) {
-    dvDist[n] = {};
-    dvNext[n] = {};
-    for(const m of NODE_NAMES) {
-      dvDist[n][m] = n===m ? 0 : Infinity;
-      dvNext[n][m] = n===m ? n : null;
+    for (const id of Object.keys(pos)) {
+      const [x, y] = pos[id];
+      const st = (s.nodes && s.nodes[id]) || '';
+      h += `<g class="node ${st}">`;
+      if (shape === 'as') {
+        h += `<rect class="node-shape" x="${x - 42}" y="${y - 20}" width="84" height="40" rx="10" style="fill:${colors[id]}"/>`;
+        h += `<text class="node-txt" x="${x}" y="${y}">AS${id}</text>`;
+      } else {
+        h += `<circle class="node-shape" cx="${x}" cy="${y}" r="23" style="fill:${colors[id]}"/>`;
+        h += `<text class="node-txt" x="${x}" y="${y}">${id}</text>`;
+      }
+      h += '</g>';
     }
+    // notes (small badges next to nodes)
+    for (const id of Object.keys(s.notes || {})) {
+      const txt = s.notes[id];
+      if (!txt) continue;
+      const [x, y] = pos[id];
+      const w = txt.length * CHAR_W + 12;
+      // place the badge on the outer side of the node (away from the centre of the graph)
+      let nx = x, ny;
+      if (shape === 'as') {
+        ny = y > 200 ? y + 36 : y - 36;
+      } else {
+        const dx = x - 260, dy = y - 180, L = Math.hypot(dx, dy) || 1;
+        nx = x + dx / L * 46; ny = y + dy / L * 40;
+        nx = Math.max(w / 2 + 4, Math.min(516 - w / 2, nx));
+      }
+      h += `<rect class="note-box" x="${nx - w / 2}" y="${ny - 10}" width="${w}" height="20" rx="5"/>`;
+      h += `<text class="note-txt" x="${nx}" y="${ny}">${esc(txt)}</text>`;
+    }
+    const pk = s.packets || [];
+    pk.forEach((p, k) => {
+      const col = p.color || '#fbbf24';
+      h += `<g class="pkt" data-k="${k}" style="opacity:0"><circle r="6" style="fill:${col}"/>`;
+      if (p.label) {
+        const w = p.label.length * CHAR_W + 8;
+        h += `<g class="pkt-lbl"><rect class="pkt-box" x="${-w / 2}" y="-8" width="${w}" height="16" rx="4" style="stroke:${col}"/>` +
+             `<text class="pkt-txt" x="0" y="0" style="fill:${col}">${esc(p.label)}</text></g>`;
+      }
+      h += '</g>';
+    });
+    this.svg.innerHTML = h;
+    this.animate(pk);
   }
-  // Init from direct links
-  for(const e of dvEdges) {
-    dvDist[e.a][e.b] = e.w;
-    dvDist[e.b][e.a] = e.w;
-    dvNext[e.a][e.b] = e.b;
-    dvNext[e.b][e.a] = e.a;
+  animate(pk) {
+    cancelAnimationFrame(this.anim);
+    if (!pk.length) return;
+    const pos = this.cfg.pos;
+    const els = [...this.svg.querySelectorAll('.pkt')];
+    const DUR = REDUCED_MOTION ? 1 : 900;
+    const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const start = performance.now();
+    const frame = now => {
+      let running = false;
+      pk.forEach((p, k) => {
+        const el = els[k];
+        const el0 = now - start - (REDUCED_MOTION ? 0 : (p.delay || 0));
+        const t = Math.max(0, Math.min(1, el0 / DUR));
+        if (t < 1) running = true;
+        const [x1, y1] = pos[p.from], [x2, y2] = pos[p.to];
+        const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy);
+        const nx = -dy / L, ny = dx / L;
+        const f = 0.18 + 0.6 * ease(t);
+        const x = x1 + dx * f + nx * 6, y = y1 + dy * f + ny * 6;
+        el.setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+        el.style.opacity = el0 < 0 ? 0 : 1;
+        const lbl = el.querySelector('.pkt-lbl');
+        if (lbl) lbl.setAttribute('transform', `translate(${(nx * 16).toFixed(1)},${(ny * 16).toFixed(1)})`);
+      });
+      if (running) this.anim = requestAnimationFrame(frame);
+    };
+    this.anim = requestAnimationFrame(frame);
   }
-  dvIteration = 0;
-  dvSubstep = 0;
-  dvConverged = false;
-  dvAutoTimer = null;
 }
 
-function dvGetAdj(n) {
-  return dvEdges.filter(e=>!e.broken&&(e.a===n||e.b===n)).map(e=>e.a===n?e.b:e.a);
+// ============================================================
+//  Shared topology for DV and LS
+// ============================================================
+const R = ['A', 'B', 'C', 'D', 'E'];
+const R_POS = { A: [80, 180], B: [215, 70], C: [400, 80], D: [440, 262], E: [225, 292] };
+const R_COLORS = { A: '#f87171', B: '#60a5fa', C: '#34d399', D: '#fbbf24', E: '#c084fc' };
+const R_LINKS = [['A', 'B', 2], ['A', 'E', 4], ['B', 'C', 3], ['B', 'E', 1], ['C', 'D', 2], ['D', 'E', 5]];
+
+function makeNet(links) {
+  const edges = links.map(([a, b, w]) => ({ a, b, w, up: true }));
+  const find = (u, v) => edges.find(e => (e.a === u && e.b === v) || (e.a === v && e.b === u));
+  const cost = (u, v) => { const e = find(u, v); return e && e.up ? e.w : null; };
+  const nodes = [...new Set(links.flatMap(l => [l[0], l[1]]))];
+  const nbrs = u => nodes.filter(v => { const e = v !== u && find(u, v); return e && e.up; });
+  const key = (a, b) => [a, b].sort().join('-');
+  const snap = (states = {}) => edges.map(e => ({ a: e.a, b: e.b, w: e.w, state: e.up ? (states[key(e.a, e.b)] || '') : 'down' }));
+  return { edges, find, cost, nbrs, key, snap };
 }
 
-function dvGetW(a,b) {
-  const e=dvEdges.find(x=>!x.broken&&((x.a===a&&x.b===b)||(x.a===b&&x.b===a)));
-  return e?e.w:Infinity;
-}
+// ============================================================
+//  DISTANCE VECTOR  (Bellman-Ford, RIP-like, ∞ = 16)
+// ============================================================
+function buildDV() {
+  const INF = 16;
+  const net = makeNet(R_LINKS);
+  const alive = { A: true, B: true, C: true, D: true, E: true };
+  const D = {}, V = {};
+  R.forEach(u => { D[u] = {}; V[u] = {}; R.forEach(v => { D[u][v] = u === v ? 0 : INF; V[u][v] = null; }); });
+  const steps = [];
+  const fmt = d => d >= INF ? '∞' : d;
+  const clone = o => JSON.parse(JSON.stringify(o));
 
-function dvStep() {
-  if(dvConverged && !dvBroken) {
-    addLog('dv-log','✅ Sieť je skonvergovaná.','converge');
-    return;
+  function table(changed = new Set(), focusCol = null) {
+    let h = '<table><tr><th>z \\ do</th>' + R.map(v => `<th${v === focusCol ? ' style="color:#fbbf24"' : ''}>${v}</th>`).join('') + '</tr>';
+    for (const u of R) {
+      h += `<tr class="${alive[u] ? '' : 'dead'}"><td style="color:${alive[u] ? R_COLORS[u] : '#475569'};font-weight:bold">${u}</td>`;
+      for (const v of R) {
+        if (!alive[u]) { h += '<td>—</td>'; continue; }
+        const d = D[u][v];
+        const cls = changed.has(u + v) ? 'changed' : (u === v ? 'best' : '');
+        const via = V[u][v] && d < INF ? `<span class="via">(${V[u][v]})</span>` : '';
+        h += `<td class="${cls}">${fmt(d)}${via}</td>`;
+      }
+      h += '</tr>';
+    }
+    return h + '</table><div class="muted" style="font-size:.72em;margin-top:6px">Riadok = vektor vzdialeností routera, v zátvorke next hop. ∞ = 16 (ako v RIP).</div>';
   }
-  dvBroken = false;
-  dvIteration++;
-  let changed = false;
-  for(const u of NODE_NAMES) {
-    for(const v of NODE_NAMES) {
-      if(u===v) continue;
-      for(const w of dvGetAdj(u)) {
-        const via = dvGetW(u,w) + dvDist[w][v];
-        if(via < dvDist[u][v]) {
-          dvDist[u][v] = via;
-          dvNext[u][v] = w;
-          changed = true;
-          addLog('dv-log',`↻ ${u}→${v} via ${w} = ${via}`,'update');
+
+  // Bellman-Ford update of router u towards v using (old) vectors of neighbours
+  function relax(u, v, Dold) {
+    let best = INF, via = null;
+    for (const n of net.nbrs(u)) {
+      const c = Math.min(INF, net.cost(u, n) + Dold[n][v]);
+      if (c < best || (c === best && n === V[u][v] && c < INF)) { best = c; via = n; }
+    }
+    return [best, best < INF ? via : null];
+  }
+
+  function allPackets(labelFn) {
+    const p = [];
+    for (const e of net.edges) if (e.up) {
+      p.push({ from: e.a, to: e.b, label: labelFn ? labelFn(e.a) : null });
+      p.push({ from: e.b, to: e.a, label: labelFn ? labelFn(e.b) : null });
+    }
+    return p;
+  }
+
+  const legend = '<span><i style="border-color:#fbbf24"></i>správa s vektorom</span>' +
+    '<span><i style="border-color:#dc2626;border-top-style:dashed"></i>nefunkčná linka</span>' +
+    '<span><i class="dot" style="border-color:#fbbf24"></i>router, ktorý zmenil tabuľku</span>';
+
+  // --- step: initial state
+  R.forEach(u => { D[u][u] = 0; });
+  steps.push({
+    phase: 'Inicializácia', plainTitle: 'Počiatočný stav',
+    title: 'Počiatočný stav',
+    text: `<p>Každý router pozná zatiaľ <b>len sám seba</b> (vzdialenosť 0). O zvyšku siete nevie nič – všetky ostatné vzdialenosti sú <code>∞</code>.</p>
+           <p>Čísla na linkách sú ich ceny (metrika). Cieľ: každý router má nájsť najkratšiu cestu ku všetkým ostatným.</p>`,
+    edges: net.snap(), nodes: {}, table: table(), tableTitle: 'Tabuľka vzdialeností (distance vectors)',
+    log: [['info', 'Štart simulácie – routre poznajú len seba.']],
+  });
+
+  // --- step: directly connected neighbours
+  const ch0 = new Set();
+  for (const e of net.edges) {
+    D[e.a][e.b] = e.w; V[e.a][e.b] = e.b; ch0.add(e.a + e.b);
+    D[e.b][e.a] = e.w; V[e.b][e.a] = e.a; ch0.add(e.b + e.a);
+  }
+  steps.push({
+    phase: 'Inicializácia', plainTitle: 'Priami susedia',
+    title: 'Routre poznajú priamo pripojených susedov',
+    text: `<p>Každý router zistí ceny liniek k <b>priamym susedom</b> a zapíše si ich do svojho vektora.</p>
+           <p>Napr. router <b>A</b> vie: <code>B = 2</code>, <code>E = 4</code>, ostatné ∞.</p>`,
+    edges: net.snap(), nodes: {}, table: table(ch0), tableTitle: 'Tabuľka vzdialeností (distance vectors)',
+    log: R.map(u => ['info', `${u}: susedia ${net.nbrs(u).map(n => n + '=' + net.cost(u, n)).join(', ')}`]),
+  });
+
+  // --- rounds until convergence
+  function round(phase, roundNo, opts = {}) {
+    const Dold = clone(D);
+    const changed = new Set(), changes = [];
+    for (const u of R) {
+      if (!alive[u]) continue;
+      for (const v of R) {
+        if (u === v) continue;
+        const [d, via] = relax(u, v, Dold);
+        if (d !== D[u][v] || via !== V[u][v]) {
+          if (d !== D[u][v]) { changed.add(u + v); changes.push({ u, v, from: D[u][v], to: d, via }); }
+          D[u][v] = d; V[u][v] = via;
         }
       }
     }
+    const nodes = {};
+    changes.forEach(c => nodes[c.u] = 'active');
+    R.forEach(u => { if (!alive[u]) nodes[u] = 'down'; });
+    return { Dold, changed, changes, nodes };
   }
-  if(!changed) {
-    dvConverged = true;
-    addLog('dv-log',`🎉 KONVERGENCIA po ${dvIteration} iteráciách!`,'converge');
-    document.getElementById('dv-stepinfo').innerHTML=`<span class="highlight">✅ Konvergovaná!</span> Všetky uzly poznajú najkratšie cesty.`;
-  } else {
-    addLog('dv-log',`--- Iterácia ${dvIteration} ---`,'info');
-    document.getElementById('dv-stepinfo').innerHTML=`Iterácia <span class="highlight">${dvIteration}</span>: uzly si vymenili tabuľky so susedmi.`;
-  }
-  dvRenderTable();
-  drawGraph('canvas-dv', dvEdges);
-}
 
-function dvAuto() {
-  if(dvAutoTimer) { clearInterval(dvAutoTimer); dvAutoTimer=null; return; }
-  const speed = () => 2200 - parseInt(document.getElementById('dv-speed').value);
-  dvAutoTimer = setInterval(()=>{
-    dvStep();
-    if(dvConverged) { clearInterval(dvAutoTimer); dvAutoTimer=null; }
-  }, speed());
-}
-
-function dvReset() {
-  if(dvAutoTimer) { clearInterval(dvAutoTimer); dvAutoTimer=null; }
-  dvInit();
-  document.getElementById('dv-log').innerHTML='';
-  document.getElementById('dv-stepinfo').innerHTML='Stlač <span class="highlight">Krok</span> alebo <span class="highlight">Auto</span> pre spustenie.';
-  dvRenderTable();
-  drawGraph('canvas-dv', dvEdges);
-}
-
-function dvBreakLink() {
-  // Break A-B link
-  const e = dvEdges.find(x=>x.a==='A'&&x.b==='B');
-  if(e && !e.broken) {
-    e.broken = true;
-    dvDist['A']['B'] = Infinity; dvNext['A']['B'] = null;
-    dvDist['B']['A'] = Infinity; dvNext['B']['A'] = null;
-    dvConverged = false;
-    dvBroken = true;
-    addLog('dv-log','✂ Linka A-B prerušená! Count-to-infinity možný!','update');
-    document.getElementById('dv-stepinfo').innerHTML=`<span class="highlight">✂ Linka A-B prerušená.</span> Sleduj count-to-infinity efekt!`;
-    dvRenderTable();
-    drawGraph('canvas-dv', dvEdges);
-  }
-}
-
-function dvRenderTable() {
-  const INF='∞';
-  let html='<table><tr><th>Z\\ Do</th>';
-  for(const n of NODE_NAMES) html+=`<th>${n}</th>`;
-  html+='</tr>';
-  for(const u of NODE_NAMES) {
-    html+=`<tr><td style="color:${NODE_COLORS[u]};font-weight:bold">${u}</td>`;
-    for(const v of NODE_NAMES) {
-      const d=dvDist[u][v];
-      html+=`<td class="${d===0?'best':d===Infinity?'':'changed'}">${d===Infinity?INF:d}</td>`;
+  let k = 0;
+  while (true) {
+    k++;
+    const r = round('Konvergencia', k);
+    const pk = allPackets(() => 'DV');
+    if (!r.changes.length) {
+      steps.push({
+        phase: 'Konvergencia', plainTitle: `Kolo ${k} – konvergencia`,
+        title: `Kolo ${k}: žiadne zmeny → <span class="ok">sieť skonvergovala ✓</span>`,
+        text: `<p>Routre si opäť vymenili vektory, ale <b>nikto nenašiel kratšiu cestu</b>. Tabuľky sú stabilné – sieť je <b>skonvergovaná</b> po ${k - 1} kolách výmeny.</p>
+               <p>Všimni si: žiadny router nepozná celú topológiu, pozná len vzdialenosť a <b>next hop</b> (smer) ku každému cieľu.</p>
+               <p class="muted">Ďalej: čo sa stane, keď router A vypadne?</p>`,
+        edges: net.snap(), nodes: {}, packets: pk, table: table(), tableTitle: 'Tabuľka vzdialeností (distance vectors)',
+        log: [['converge', `KONVERGENCIA po ${k - 1} kolách.`]],
+      });
+      break;
     }
-    html+='</tr>';
+    const list = r.changes.map(c => `<li><b>${c.u}</b> → ${c.v}: ${fmt(c.from)} → <span class="hl">${fmt(c.to)}</span> (cez ${c.via}, ${net.cost(c.u, c.via)} + ${r.Dold[c.via][c.v]})</li>`).join('');
+    steps.push({
+      phase: 'Konvergencia', plainTitle: `Kolo ${k}`,
+      title: `Kolo ${k}: výmena vektorov so susedmi`,
+      text: `<p>Každý router pošle <b>celý svoj vektor</b> všetkým susedom. Po prijatí prepočíta podľa Bellman-Forda:</p>
+             <p><code>D(u,v) = min<sub>sused n</sub> [ c(u,n) + D(n,v) ]</code></p>
+             <p>Zmeny v tomto kole:</p><ul>${list}</ul>`,
+      edges: net.snap(), nodes: r.nodes, packets: pk, table: table(r.changed), tableTitle: 'Tabuľka vzdialeností (distance vectors)',
+      log: r.changes.map(c => ['update', `${c.u}→${c.v}: ${fmt(c.from)} → ${fmt(c.to)} cez ${c.via}`]),
+    });
   }
-  html+='</table>';
-  document.getElementById('dv-table').innerHTML=html;
-}
 
-// ===========================
-// LINK STATE SIMULATION
-// ===========================
-let lsEdges, lsLSDB, lsPhase, lsFlooded, lsDijkDone, lsDist, lsPrev, lsVisited, lsAutoTimer, lsBroken;
-
-function lsInit() {
-  lsEdges = initEdges();
-  lsBroken = false;
-  lsLSDB = {}; // Link state database: what each router knows
-  for(const n of NODE_NAMES) lsLSDB[n] = null;
-  lsPhase = 'flood'; // flood -> dijkstra
-  lsFlooded = [];
-  lsDijkDone = false;
-  lsDist = {};
-  lsPrev = {};
-  lsVisited = new Set();
-  lsAutoTimer = null;
-}
-
-function lsGetAdj(n) {
-  return lsEdges.filter(e=>!e.broken&&(e.a===n||e.b===n)).map(e=>({
-    node: e.a===n?e.b:e.a, w: e.w
-  }));
-}
-
-function lsStep() {
-  if(lsPhase==='flood') {
-    // Each router floods its LSA
-    const remaining = NODE_NAMES.filter(n=>!lsFlooded.includes(n));
-    if(remaining.length===0) {
-      lsPhase='dijkstra';
-      addLog('ls-log','📡 Flooding hotový. Spúšťam Dijkstru z A...','info');
-      document.getElementById('ls-stepinfo').innerHTML=`<span class="highlight">Flooding dokončený.</span> Každý uzol pozná celú topológiu. Spúšťam Dijkstru...`;
-      // Init Dijkstra
-      for(const n of NODE_NAMES) { lsDist[n]=Infinity; lsPrev[n]=null; }
-      lsDist['A']=0;
-      lsVisited=new Set();
-      lsRenderTable();
-      drawGraph('canvas-ls', lsEdges, {});
-      return;
-    }
-    const n = remaining[0];
-    lsFlooded.push(n);
-    const adj = lsGetAdj(n);
-    lsLSDB[n] = adj;
-    const lsaContents = adj.map(x=>`${x.node}(w=${x.w})`).join(', ') || 'žiadne linky';
-    addLog('ls-log',`📡 ${n} LSA: neighbors=[${lsaContents}]`,'send');
-    document.getElementById('ls-stepinfo').innerHTML='Uzol <span class="highlight" style="color:'+NODE_COLORS[n]+'">'+n+'</span> flooduje svoju LSA (lokálne linky) celej sieti.';
-    drawGraph('canvas-ls', lsEdges, {node:n});
-    lsRenderTable();
-    return;
+  // --- failure of router A
+  const Dbefore = clone(D);
+  alive.A = false;
+  net.edges.forEach(e => { if (e.a === 'A' || e.b === 'A') e.up = false; });
+  const chF = new Set(), fl = [];
+  for (const u of ['B', 'E']) {
+    const [d, via] = relax(u, 'A', Dbefore);
+    fl.push(`<li><b>${u}</b>: linka k A je mŕtva, ale v uloženom vektore suseda <b>${via}</b> je A dosiahnuteľné za ${Dbefore[via]['A']} → ${u} si zapíše <span class="hl">${fmt(d)} cez ${via}</span></li>`);
+    D[u]['A'] = d; V[u]['A'] = via; chF.add(u + 'A');
   }
-  if(lsPhase==='dijkstra') {
-    if(lsDijkDone) {
-      addLog('ls-log','✅ Dijkstra hotový, všetky cesty nájdené.','converge');
-      return;
+  const noteA = () => { const o = {}; R.forEach(u => { if (alive[u]) o[u] = 'A: ' + fmt(D[u]['A']); }); return o; };
+  steps.push({
+    phase: 'Výpadok – count-to-infinity', plainTitle: 'Router A vypadol',
+    title: '<span class="bad">✂ Router A vypadol</span>',
+    text: `<p>Linky A–B a A–E prestali fungovať. Susedia B a E to zistia a prepočítajú cestu k A z <b>posledných vektorov, ktoré dostali od susedov</b>:</p>
+           <ul>${fl.join('')}</ul>
+           <p>Problém: B ukazuje na E a E na B – vznikla <span class="bad">smerovacia slučka</span>. Nikto z nich nevie, že „ich“ cesta vedie cez toho druhého.</p>`,
+    edges: net.snap(), nodes: { A: 'down', B: 'active', E: 'active' }, notes: noteA(),
+    table: table(chF, 'A'), tableTitle: 'Tabuľka vzdialeností – sleduj stĺpec A',
+    log: [['err', 'Router A vypadol (linky A-B, A-E down).'], ...['B', 'E'].map(u => ['update', `${u}→A: ${Dbefore[u]['A']} → ${fmt(D[u]['A'])} cez ${V[u]['A']}`])],
+  });
+
+  let c = 0;
+  while (true) {
+    c++;
+    const snapA = {}; R.forEach(u => snapA[u] = D[u]['A']);
+    const r = round('Výpadok', c);
+    const pk = allPackets(u => 'A:' + fmt(snapA[u]));
+    const chA = r.changes.filter(x => x.v === 'A');
+    if (!r.changes.length) {
+      steps.push({
+        phase: 'Výpadok – count-to-infinity', plainTitle: 'A nedosiahnuteľný',
+        title: `<span class="ok">Konečne: A je všade ∞ (nedosiahnuteľný)</span>`,
+        text: `<p>Až po <b>${c - 1} kolách</b> všetky routre dopočítali do „nekonečna“ (16) a uznali, že A je nedosiahnuteľný. Počas celej doby pakety pre A krúžili v slučke.</p>
+               <p>Toto je <b>count-to-infinity</b> – „zlá správa sa šíri pomaly“. Preto RIP definuje ∞ = 16 (max. 15 hopov) a používa techniky ako <i>split horizon</i>, <i>poison reverse</i>, <i>triggered updates</i> a <i>hold-down</i>. EIGRP tomu predchádza algoritmom DUAL.</p>`,
+        edges: net.snap(), nodes: { A: 'down' }, notes: noteA(), packets: pk,
+        table: table(new Set(), 'A'), tableTitle: 'Tabuľka vzdialeností – sleduj stĺpec A',
+        log: [['converge', `A nedosiahnuteľný po ${c - 1} kolách (count-to-infinity).`]],
+      });
+      break;
     }
-    // Pick unvisited with min dist
-    let u=null, minD=Infinity;
-    for(const n of NODE_NAMES) {
-      if(!lsVisited.has(n) && lsDist[n]<minD) { minD=lsDist[n]; u=n; }
+    const list = chA.map(x => `<li><b>${x.u}</b>: ${fmt(x.from)} → <span class="hl">${fmt(x.to)}</span>${x.via ? ' cez ' + x.via : ''}</li>`).join('');
+    steps.push({
+      phase: 'Výpadok – count-to-infinity', plainTitle: `Kolo ${c} po výpadku`,
+      title: `Kolo ${c}: počítanie do nekonečna…`,
+      text: `<p>Routre si vymenia vektory (na správach vidno, akú vzdialenosť k A ohlasujú). Každý verí susedovi, takže vzdialenosť k A <b>postupne rastie</b>:</p>
+             <ul>${list}</ul>`,
+      edges: net.snap(), nodes: r.nodes, notes: noteA(), packets: pk,
+      table: table(r.changed, 'A'), tableTitle: 'Tabuľka vzdialeností – sleduj stĺpec A',
+      log: chA.map(x => ['update', `${x.u}→A: ${fmt(x.from)} → ${fmt(x.to)}${x.via ? ' cez ' + x.via : ''}`]),
+    });
+  }
+
+  return {
+    id: 'dv', tab: 'Distance Vector', title: 'Distance Vector', algo: '· Bellman-Ford',
+    desc: 'Susedné routre si periodicky vymieňajú celé svoje smerovacie tabuľky (vektory vzdialeností). <i>„Všetko, čo viem o sieti – len svojim susedom.“</i>',
+    protocols: ['RIP', 'IGRP', 'EIGRP'], legend, pos: R_POS, colors: R_COLORS, shape: 'circle', steps,
+  };
+}
+
+// ============================================================
+//  LINK STATE  (flooding + Dijkstra)
+// ============================================================
+function buildLS() {
+  const net = makeNet(R_LINKS);
+  const steps = [];
+  const seq = {}; R.forEach(r => seq[r] = 0);          // sequence number of each router's LSA
+  const lsdb = {}; R.forEach(r => { lsdb[r] = {}; });   // lsdb[router][origin] = seq
+  const lsaText = o => net.nbrs(o).map(n => `${n}(${net.cost(o, n)})`).join(', ');
+
+  const legend = '<span><i style="border-color:#fbbf24"></i>správa / práve skúmaná linka</span>' +
+    '<span><i style="border-color:#22c55e"></i>strom najkratších ciest</span>' +
+    '<span><i style="border-color:#dc2626;border-top-style:dashed"></i>nefunkčná linka</span>';
+
+  function lsdbTable(fresh = new Set()) {
+    let h = '<table><tr><th>router \\ LSA od</th>' + R.map(o => `<th>${o}</th>`).join('') + '</tr>';
+    for (const r of R) {
+      h += `<tr><td style="color:${R_COLORS[r]};font-weight:bold">${r}</td>`;
+      for (const o of R) {
+        const s = lsdb[r][o];
+        h += `<td class="${fresh.has(r + o) ? 'changed' : (s ? 'best' : '')}">${s ? '✓ seq ' + s : '·'}</td>`;
+      }
+      h += '</tr>';
     }
-    if(u===null) { lsDijkDone=true; addLog('ls-log','🎉 KONVERGENCIA - Dijkstra dokončená!','converge');
-      document.getElementById('ls-stepinfo').innerHTML=`<span class="highlight">✅ Konvergovaná!</span> Dijkstra dokončil výpočet najkratších ciest z A.`;
-      lsRenderTable(); return; }
-    lsVisited.add(u);
-    addLog('ls-log',`🔍 Spracovávam uzol ${u} (d=${minD})`,'update');
-    document.getElementById('ls-stepinfo').innerHTML='Dijkstra: spracovávam <span class="highlight" style="color:'+NODE_COLORS[u]+'">'+u+'</span> (vzdialenosť='+minD+')';
-    for(const {node:v, w} of lsGetAdj(u)) {
-      if(lsVisited.has(v)) continue;
-      const alt=lsDist[u]+w;
-      if(alt<lsDist[v]) {
-        lsDist[v]=alt;
-        lsPrev[v]=u;
-        addLog('ls-log',`  ↻ dist[${v}] = ${alt} cez ${u}`,'update');
+    return h + '</table><div class="muted" style="font-size:.72em;margin-top:6px">Link State Database (LSDB) – ktoré LSA má ktorý router uložené.</div>';
+  }
+
+  // BFS flooding from origin – returns packets with delays by hop distance
+  function flood(origin, delayBase = 0) {
+    const pk = [], depth = { [origin]: 0 }, q = [origin];
+    while (q.length) {
+      const u = q.shift();
+      for (const v of net.nbrs(u)) {
+        if (depth[v] !== undefined) continue;
+        depth[v] = depth[u] + 1; q.push(v);
+        pk.push({ from: u, to: v, label: 'LSA ' + origin, delay: delayBase + depth[u] * 650 });
       }
     }
-    drawGraph('canvas-ls', lsEdges, {node:u});
-    lsRenderTable();
+    return pk;
   }
-}
 
-function lsAuto() {
-  if(lsAutoTimer) { clearInterval(lsAutoTimer); lsAutoTimer=null; return; }
-  const speed = () => 2200 - parseInt(document.getElementById('ls-speed').value);
-  lsAutoTimer = setInterval(()=>{
-    lsStep();
-    if(lsDijkDone) { clearInterval(lsAutoTimer); lsAutoTimer=null; }
-  }, speed());
-}
+  steps.push({
+    phase: 'Objavovanie susedov', plainTitle: 'Počiatočný stav',
+    title: 'Počiatočný stav',
+    text: `<p>Routre zatiaľ nepoznajú ani svojich susedov. Link State prebieha v troch krokoch:</p>
+           <ul><li><b>Hello</b> – objavenie susedov,</li><li><b>Flooding</b> – rozposlanie stavu svojich liniek (LSA) <b>všetkým</b> routrom,</li><li><b>Dijkstra</b> – každý router si sám vypočíta najkratšie cesty z kompletnej mapy siete.</li></ul>`,
+    edges: net.snap(), nodes: {}, table: lsdbTable(), tableTitle: 'Link State Database',
+    log: [['info', 'Štart simulácie.']],
+  });
 
-function lsReset() {
-  if(lsAutoTimer) { clearInterval(lsAutoTimer); lsAutoTimer=null; }
-  lsInit();
-  document.getElementById('ls-log').innerHTML='';
-  document.getElementById('ls-stepinfo').innerHTML='Stlač <span class="highlight">Krok</span> alebo <span class="highlight">Auto</span> pre spustenie.';
-  lsRenderTable();
-  drawGraph('canvas-ls', lsEdges);
-}
+  const helloPk = [];
+  net.edges.forEach(e => { helloPk.push({ from: e.a, to: e.b, label: 'Hello' }); helloPk.push({ from: e.b, to: e.a, label: 'Hello' }); });
+  let nt = '<table><tr><th>Router</th><th class="l">Susedia (cena linky)</th></tr>' +
+    R.map(r => `<tr><td style="color:${R_COLORS[r]};font-weight:bold">${r}</td><td class="l mono">${lsaText(r)}</td></tr>`).join('') + '</table>';
+  steps.push({
+    phase: 'Objavovanie susedov', plainTitle: 'Hello',
+    title: 'Hello pakety – objavenie susedov',
+    text: `<p>Každý router pošle na všetky svoje linky paket <b>Hello</b>. Tak zistí, kto je jeho priamy sused a akú cenu má linka k nemu.</p>
+           <p>Z toho si zostaví svoje <b>LSA</b> (Link State Advertisement) – zoznam svojich liniek.</p>`,
+    edges: net.snap(), nodes: {}, packets: helloPk, table: nt, tableTitle: 'Zistení susedia',
+    log: R.map(r => ['send', `${r}: susedia ${lsaText(r)}`]),
+  });
 
-function lsBreakLink() {
-  const e = lsEdges.find(x=>x.a==='A'&&x.b==='B');
-  if(e && !e.broken) {
-    e.broken=true;
-    lsBroken=true;
-    lsPhase='flood';
-    lsFlooded=[];
-    lsDijkDone=false;
-    addLog('ls-log','✂ Linka A-B prerušená! Uzly okamžite refloodujú LSA.','update');
-    document.getElementById('ls-stepinfo').innerHTML=`<span class="highlight">✂ Linka A-B prerušená.</span> Uzly okamžite pošlú novú LSA - žiadny count-to-infinity!`;
-    lsRenderTable();
-    drawGraph('canvas-ls', lsEdges);
+  // flood each router's LSA
+  for (const o of R) {
+    seq[o] = 1;
+    const fresh = new Set();
+    R.forEach(r => { lsdb[r][o] = 1; fresh.add(r + o); });
+    const pk = flood(o);
+    const states = {}; pk.forEach(p => states[net.key(p.from, p.to)] = 'hl');
+    steps.push({
+      phase: 'Flooding LSA', plainTitle: `Flooding LSA ${o}`,
+      title: `Router <span style="color:${R_COLORS[o]}">${o}</span> zaplaví sieť svojím LSA`,
+      text: `<p>Obsah LSA routera ${o}: <code>${o}: ${lsaText(o)}</code> (seq 1)</p>
+             <p>Každý router, ktorý LSA prijme, si ho uloží do <b>LSDB</b> a prepošle ďalej na ostatné linky (duplikáty zahodí). LSA sa tak dostane ku <b>všetkým</b> routrom – nielen k susedom.</p>`,
+      edges: net.snap(states), nodes: { [o]: 'active' }, packets: pk,
+      table: lsdbTable(fresh), tableTitle: 'Link State Database',
+      log: [['send', `LSA ${o} [${lsaText(o)}] → všetkým`]],
+    });
   }
-}
+  steps.push({
+    phase: 'Flooding LSA', plainTitle: 'LSDB synchronizovaná',
+    title: '<span class="ok">LSDB je synchronizovaná</span>',
+    text: `<p>Všetky routre majú <b>identickú databázu</b> – každý pozná celú topológiu siete (všetky routre aj ceny všetkých liniek).</p>
+           <p>Teraz si každý router <b>nezávisle</b> spustí Dijkstrov algoritmus. Ukážeme výpočet na routri <b style="color:${R_COLORS.A}">A</b>.</p>`,
+    edges: net.snap(), nodes: {}, table: lsdbTable(), tableTitle: 'Link State Database',
+    log: [['info', 'Všetky LSDB sú zhodné.']],
+  });
 
-function lsRenderTable() {
-  const INF='∞';
-  // Show Dijkstra table from A
-  let html='<table><tr><th>Uzol</th><th>Dist od A</th><th>Cez</th><th>Cesta</th></tr>';
-  for(const n of NODE_NAMES) {
-    const d=lsDist[n]!==undefined?lsDist[n]:Infinity;
-    const prev=lsPrev[n]!==undefined?lsPrev[n]:null;
-    const visited=lsVisited&&lsVisited.has(n);
-    // Reconstruct path
-    let path='';
-    if(d!==Infinity && d!==undefined) {
-      let cur=n; let parts=[];
-      while(cur) { parts.unshift(cur); cur=lsPrev[cur]; }
-      path=parts.join('→');
+  // Dijkstra from A, step by step
+  function dijkstra(src) {
+    const dist = {}, prev = {}, done = new Set();
+    R.forEach(r => { dist[r] = Infinity; prev[r] = null; });
+    dist[src] = 0;
+    const trace = [];
+    while (true) {
+      let u = null;
+      for (const r of R) if (!done.has(r) && dist[r] < Infinity && (u === null || dist[r] < dist[u])) u = r;
+      if (u === null) break;
+      done.add(u);
+      const relaxed = [];
+      for (const v of net.nbrs(u)) {
+        if (done.has(v)) continue;
+        const alt = dist[u] + net.cost(u, v);
+        const better = alt < dist[v];
+        relaxed.push({ v, alt, old: dist[v], better });
+        if (better) { dist[v] = alt; prev[v] = u; }
+      }
+      trace.push({ u, relaxed, dist: { ...dist }, prev: { ...prev }, done: new Set(done) });
     }
-    html+=`<tr>
-      <td style="color:${NODE_COLORS[n]};font-weight:bold">${n}</td>
-      <td class="${visited?'best':d===Infinity?'':'changed'}">${d===Infinity?INF:d}</td>
-      <td>${prev||'-'}</td>
-      <td style="font-size:0.85em;color:#94a3b8">${path||'-'}</td>
-    </tr>`;
+    return { dist, prev, trace };
   }
-  html+='</table>';
-  // Also show flood status
-  html+=`<div style="margin-top:8px;font-size:0.75em;color:#64748b">LSA prijaté od: ${lsFlooded.length===0?'—':lsFlooded.join(', ')}</div>`;
-  document.getElementById('ls-table').innerHTML=html;
+  const pathTo = (prev, v) => { const p = []; let c = v; while (c) { p.unshift(c); c = prev[c]; } return p; };
+  const nextHop = (prev, v, src) => { const p = pathTo(prev, v); return p[0] === src && p.length > 1 ? p[1] : '–'; };
+  const fmtD = d => d === Infinity ? '∞' : d;
+
+  function dijTable(t, changedSet = new Set()) {
+    let h = '<table><tr><th>Uzol</th><th>Vzdialenosť</th><th>Predchodca</th><th>Hotový</th><th class="l">Cesta</th></tr>';
+    for (const r of R) {
+      const d = t.dist[r];
+      h += `<tr><td style="color:${R_COLORS[r]};font-weight:bold">${r}</td>
+        <td class="${changedSet.has(r) ? 'changed' : (t.done.has(r) ? 'best' : '')}">${fmtD(d)}</td>
+        <td>${t.prev[r] || '–'}</td><td>${t.done.has(r) ? '✓' : ''}</td>
+        <td class="l path">${d < Infinity ? pathTo(t.prev, r).join('→') : '–'}</td></tr>`;
+    }
+    return h + '</table>';
+  }
+  const treeStates = (prev, extra = {}) => { const s = {}; R.forEach(r => { if (prev[r]) s[net.key(r, prev[r])] = 'tree'; }); return Object.assign(s, extra); };
+
+  const res = dijkstra('A');
+  res.trace.forEach((t, n) => {
+    const changedSet = new Set(t.relaxed.filter(x => x.better).map(x => x.v));
+    const extra = {}; t.relaxed.forEach(x => extra[net.key(t.u, x.v)] = x.better ? 'hl' : (extra[net.key(t.u, x.v)] || ''));
+    const nodes = {}; t.done.forEach(r => nodes[r] = 'done'); nodes[t.u] = 'active';
+    const notes = {}; R.forEach(r => notes[r] = 'd=' + fmtD(t.dist[r]));
+    const rl = t.relaxed.length
+      ? t.relaxed.map(x => `<li>${t.u}→${x.v}: ${t.dist[t.u]} + ${net.cost(t.u, x.v)} = ${x.alt} ${x.better ? `<span class="hl">&lt; ${fmtD(x.old)} → aktualizujem</span>` : `<span class="muted">≥ ${fmtD(x.old)} → bez zmeny</span>`}</li>`).join('')
+      : '<li class="muted">žiadni nespracovaní susedia</li>';
+    steps.push({
+      phase: 'Dijkstra (na routri A)', plainTitle: `Dijkstra – vyberám ${t.u}`,
+      title: `Dijkstra ${n + 1}/${R.length}: vyberám <span style="color:${R_COLORS[t.u]}">${t.u}</span> (d = ${t.dist[t.u]})`,
+      text: `<p>Zo všetkých nespracovaných uzlov vyberiem ten s <b>najmenšou</b> vzdialenosťou – <b>${t.u}</b>. Jeho vzdialenosť je teraz definitívna.</p>
+             <p>Skontrolujem jeho susedov (relaxácia):</p><ul>${rl}</ul>`,
+      edges: net.snap(treeStates(t.prev, extra)), nodes, notes, table: dijTable(t, changedSet), tableTitle: 'Dijkstrova tabuľka (z uzla A)',
+      log: [['update', `Vyberám ${t.u} (d=${t.dist[t.u]})`], ...t.relaxed.filter(x => x.better).map(x => ['update', `  dist[${x.v}] = ${x.alt} cez ${t.u}`])],
+    });
+  });
+
+  function rtTable(prev, dist, old) {
+    let h = '<table><tr><th>Cieľ</th><th>Next hop</th><th>Cena</th><th class="l">Cesta</th></tr>';
+    for (const r of R) {
+      if (r === 'A') continue;
+      const ch = old && (old.dist[r] !== dist[r] || nextHop(old.prev, r, 'A') !== nextHop(prev, r, 'A'));
+      h += `<tr><td style="color:${R_COLORS[r]};font-weight:bold">${r}</td><td class="${ch ? 'changed' : ''}">${nextHop(prev, r, 'A')}</td>
+            <td class="${ch ? 'changed' : ''}">${fmtD(dist[r])}${ch ? ` <span class="via">(predtým ${fmtD(old.dist[r])})</span>` : ''}</td><td class="l path">${pathTo(prev, r).join('→')}</td></tr>`;
+    }
+    return h + '</table>';
+  }
+  const doneAll = {}; R.forEach(r => doneAll[r] = 'done');
+  steps.push({
+    phase: 'Dijkstra (na routri A)', plainTitle: 'Smerovacia tabuľka A',
+    title: '<span class="ok">Hotovo – smerovacia tabuľka routra A ✓</span>',
+    text: `<p>Zelené linky tvoria <b>strom najkratších ciest</b> z A. Z neho router A vyčíta pre každý cieľ <b>next hop</b>.</p>
+           <p>Rovnaký výpočet si urobí každý router sám – výpočet je oddelený od šírenia informácií, chybný router pokazí len informáciu o svojich linkách.</p>`,
+    edges: net.snap(treeStates(res.prev)), nodes: doneAll, notes: Object.fromEntries(R.map(r => [r, 'd=' + res.dist[r]])),
+    table: rtTable(res.prev, res.dist), tableTitle: 'Smerovacia tabuľka routra A',
+    log: [['converge', 'Dijkstra dokončený – smerovacia tabuľka A hotová.']],
+  });
+
+  // failure of link B-E
+  net.find('B', 'E').up = false;
+  const fresh = new Set();
+  ['B', 'E'].forEach(o => { seq[o]++; R.forEach(r => { lsdb[r][o] = seq[o]; fresh.add(r + o); }); });
+  const pkF = [...flood('B'), ...flood('E', 150)];
+  steps.push({
+    phase: 'Výpadok linky', plainTitle: 'Linka B–E vypadla',
+    title: '<span class="bad">✂ Linka B–E vypadla</span> – nové LSA',
+    text: `<p>Routre B a E zistia výpadok (neprichádzajú Hello) a <b>okamžite</b> vygenerujú nové LSA s vyšším sekvenčným číslom:</p>
+           <ul><li><code>B: ${lsaText('B')}</code> (seq ${seq.B})</li><li><code>E: ${lsaText('E')}</code> (seq ${seq.E})</li></ul>
+           <p>Nové LSA sa zaplavia do celej siete a nahradia staré záznamy v LSDB.</p>`,
+    edges: net.snap(), nodes: { B: 'active', E: 'active' }, packets: pkF,
+    table: lsdbTable(fresh), tableTitle: 'Link State Database',
+    log: [['err', 'Linka B-E down.'], ['send', `LSA B seq ${seq.B} [${lsaText('B')}]`], ['send', `LSA E seq ${seq.E} [${lsaText('E')}]`]],
+  });
+  const res2 = dijkstra('A');
+  steps.push({
+    phase: 'Výpadok linky', plainTitle: 'Prepočet SPF',
+    title: '<span class="ok">Prepočet Dijkstru – nová tabuľka ✓</span>',
+    text: `<p>Každý router má opäť kompletnú a aktuálnu mapu, takže si len <b>znova spustí Dijkstru</b>. Zmenené cesty sú zvýraznené.</p>
+           <p>Žiadne počítanie do nekonečna ani slučky ako pri Distance Vector – za cenu väčšieho počtu správ (O(n·E)) a výpočtu O(n²) na každom routri.</p>`,
+    edges: net.snap(treeStates(res2.prev)), nodes: doneAll, notes: Object.fromEntries(R.map(r => [r, 'd=' + res2.dist[r]])),
+    table: rtTable(res2.prev, res2.dist, res), tableTitle: 'Smerovacia tabuľka routra A',
+    log: [['converge', 'SPF prepočítaný, sieť skonvergovaná.']],
+  });
+
+  return {
+    id: 'ls', tab: 'Link State', title: 'Link State', algo: '· Dijkstra',
+    desc: 'Routre rozposielajú stav svojich liniek všetkým routrom v sieti. Každý tak pozná celú topológiu a najkratšie cesty si počíta sám. <i>„Informácie len o mojich susedoch – všetkým.“</i>',
+    protocols: ['OSPF', 'IS-IS'], legend, pos: R_POS, colors: R_COLORS, shape: 'circle', steps,
+  };
 }
 
-function switchTab(which) {
-  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['dv','ls'][i]===which));
-  document.getElementById('panel-dv').classList.toggle('active',which==='dv');
-  document.getElementById('panel-ls').classList.toggle('active',which==='ls');
+// ============================================================
+//  PATH VECTOR  (BGP between autonomous systems)
+// ============================================================
+function buildPV() {
+  const AS = ['100', '200', '300', '400', '500'];
+  const pos = { '100': [80, 180], '200': [230, 70], '300': [230, 292], '400': [430, 70], '500': [430, 292] };
+  const colors = { '100': '#f87171', '200': '#60a5fa', '300': '#34d399', '400': '#fbbf24', '500': '#c084fc' };
+  const net = makeNet([['100', '200'], ['100', '300'], ['200', '300'], ['200', '400'], ['300', '500'], ['400', '500']].map(([a, b]) => [a, b, null]));
+  const PREFIX = '10.1.0.0/16';
+  const ORIGIN = '100';
+  const LOCAL_PREF = { '500': { '400': 200 } };            // policy: AS500 prefers routes learned from AS400
+  const lp = (as, from) => (LOCAL_PREF[as] && LOCAL_PREF[as][from]) || 100;
+  const rib = {}; AS.forEach(a => rib[a] = {});            // Adj-RIB-In: rib[as][neighbour] = path
+  const best = {}; AS.forEach(a => best[a] = null);         // {path, from}
+  const steps = [];
+  const P = p => p.join(' ');
+
+  const legend = '<span><i class="dot" style="border-color:#fbbf24"></i>UPDATE (cesta = AS_PATH)</span>' +
+    '<span><i class="dot" style="border-color:#f87171"></i>zamietnuté – slučka / WITHDRAW</span>' +
+    '<span><i style="border-color:#22c55e"></i>linky na najlepšej ceste</span>';
+
+  function decide(as) {
+    if (as === ORIGIN) return { path: [ORIGIN], from: null };
+    const c = Object.entries(rib[as]).map(([from, path]) => ({ from, path: [as, ...path], lp: lp(as, from) }));
+    if (!c.length) return null;
+    c.sort((x, y) => y.lp - x.lp || x.path.length - y.path.length || +x.from - +y.from);
+    return c[0];
+  }
+  const same = (a, b) => (a && b) ? P(a.path) === P(b.path) : a === b;
+
+  function ribCell(as) {
+    if (as === ORIGIN) return '<span class="muted">vlastná sieť (originátor)</span>';
+    const e = Object.entries(rib[as]);
+    if (!e.length) return '<span class="muted">—</span>';
+    return '<div class="rib">' + e.sort((x, y) => +x[0] - +y[0]).map(([from, path]) => {
+      const isBest = best[as] && best[as].from === from;
+      const l = lp(as, from);
+      return `<div class="${isBest ? 'star' : 'alt'}">${isBest ? '★' : '·'} od AS${from}: <span class="path">${P(path)}</span>${l !== 100 ? ` <span class="hl">LP ${l}</span>` : ''}</div>`;
+    }).join('') + '</div>';
+  }
+  function table(changed = new Set()) {
+    let h = '<table><tr><th>AS</th><th class="l">Prijaté cesty (Adj-RIB-In)</th><th class="l">Najlepšia cesta k ' + PREFIX + '</th></tr>';
+    for (const a of AS) {
+      const b = best[a];
+      h += `<tr><td style="color:${colors[a]};font-weight:bold">AS${a}</td><td class="l">${ribCell(a)}</td>
+            <td class="l path ${changed.has(a) ? 'changed' : (b ? 'best' : '')}">${b ? P(b.path) : '—'}</td></tr>`;
+    }
+    return h + '</table><div class="muted" style="font-size:.72em;margin-top:6px">Výber cesty: 1) najvyšší LOCAL_PREF (politika), 2) najkratšia AS_PATH, 3) nižšie číslo AS suseda.</div>';
+  }
+  const notes = () => { const o = {}; AS.forEach(a => o[a] = best[a] ? (a === ORIGIN ? PREFIX : 'cesta: ' + P(best[a].path)) : ''); return o; };
+  const bestStates = () => {
+    const s = {};
+    AS.forEach(a => { const b = best[a]; if (b) for (let i = 0; i + 1 < b.path.length; i++) s[net.key(b.path[i], b.path[i + 1])] = 'tree'; });
+    return s;
+  };
+
+  // queue of messages generated by best-path changes
+  function announce(as, queue) {
+    const b = best[as];
+    for (const n of net.nbrs(as)) queue.push(b ? { from: as, to: n, type: 'UPDATE', path: b.path } : { from: as, to: n, type: 'WITHDRAW' });
+  }
+
+  function wave(queue, phase, title) {
+    const pk = [], items = [], log = [], changedAS = new Set(), touched = new Set();
+    for (const m of queue) {
+      if (m.type === 'UPDATE') {
+        if (m.path.includes(m.to)) {
+          delete rib[m.to][m.from];
+          pk.push({ from: m.from, to: m.to, label: P(m.path), color: '#f87171' });
+          items.push(`<li>AS${m.from} → AS${m.to}: <code>${P(m.path)}</code> – <span class="bad">zamietnuté, AS${m.to} už je v ceste (slučka)</span></li>`);
+          log.push(['err', `AS${m.to} zamieta [${P(m.path)}] od AS${m.from} – slučka`]);
+        } else {
+          rib[m.to][m.from] = m.path;
+          pk.push({ from: m.from, to: m.to, label: P(m.path) });
+          items.push({ m });
+          log.push(['send', `AS${m.from} → AS${m.to}: UPDATE ${PREFIX} [${P(m.path)}]`]);
+        }
+      } else {
+        delete rib[m.to][m.from];
+        pk.push({ from: m.from, to: m.to, label: 'WITHDRAW', color: '#f87171' });
+        items.push(`<li>AS${m.from} → AS${m.to}: <span class="bad">WITHDRAW ${PREFIX}</span></li>`);
+        log.push(['err', `AS${m.from} → AS${m.to}: WITHDRAW ${PREFIX}`]);
+      }
+      touched.add(m.to);
+    }
+    const next = [];
+    const decisions = {};
+    for (const a of AS) {
+      if (!touched.has(a)) continue;
+      const nb = decide(a);
+      if (!same(nb, best[a])) {
+        decisions[a] = { old: best[a], now: nb };
+        best[a] = nb; changedAS.add(a);
+        announce(a, next);
+        log.push(['update', `AS${a}: nová najlepšia cesta ${nb ? P(nb.path) : '—'}`]);
+      }
+    }
+    // describe accepted updates with their effect
+    const html = items.map(it => {
+      if (typeof it === 'string') return it;
+      const { m } = it, d = decisions[m.to];
+      let eff;
+      if (d && d.now && d.now.from === m.from) {
+        eff = `<span class="ok">nová najlepšia cesta <code>${P(d.now.path)}</code></span>`;
+        if (lp(m.to, m.from) > 100 && d.old) eff += ` – <span class="hl">politika LOCAL_PREF ${lp(m.to, m.from)} vyhráva nad kratšou cestou</span>`;
+      } else {
+        const b = best[m.to];
+        eff = `<span class="muted">uložená ako alternatíva (najlepšia ostáva <code>${b ? P(b.path) : '—'}</code>)</span>`;
+      }
+      return `<li>AS${m.from} → AS${m.to}: <code>${P(m.path)}</code> – ${eff}</li>`;
+    }).join('');
+    const nodes = {}; changedAS.forEach(a => nodes[a] = 'active');
+    return { pk, html, log, next, nodes, changedAS };
+  }
+
+  // ---- step: sessions
+  const openPk = [];
+  net.edges.forEach(e => { openPk.push({ from: e.a, to: e.b, label: 'OPEN' }); openPk.push({ from: e.b, to: e.a, label: 'OPEN' }); });
+  steps.push({
+    phase: 'Nadviazanie spojenia', plainTitle: 'OPEN',
+    title: 'Nadviazanie BGP relácií (OPEN / KEEPALIVE)',
+    text: `<p>Uzly tu nie sú jednotlivé routre, ale <b>autonómne systémy (AS)</b> – siete spravované jednou organizáciou. Medzi susednými AS sa nadviaže BGP relácia cez <b>TCP, port 179</b>.</p>
+           <p>Správa <b>OPEN</b> predstaví router a jeho schopnosti; potvrdí sa <b>KEEPALIVE</b>, ktorý sa potom posiela pravidelne, aby sa odlíšil mŕtvy sused od suseda, ktorý „nemá čo povedať“.</p>`,
+    edges: net.snap(), nodes: {}, packets: openPk, table: table(), tableTitle: 'BGP tabuľky',
+    log: net.edges.map(e => ['info', `Relácia AS${e.a} ↔ AS${e.b} nadviazaná (TCP 179)`]),
+  });
+
+  // ---- step: policy introduction
+  steps.push({
+    phase: 'Nadviazanie spojenia', plainTitle: 'Politika',
+    title: 'Politika: AS500 uprednostňuje AS400',
+    text: `<p>BGP nehľadá len najkratšiu cestu – umožňuje definovať <b>politiky</b> (napr. podľa obchodných zmlúv medzi poskytovateľmi).</p>
+           <p>V našom príklade má <b>AS500</b> výhodnejšiu zmluvu s <b>AS400</b>, preto trasám od AS400 nastaví <code>LOCAL_PREF = 200</code> (ostatné majú 100). Vyšší LOCAL_PREF má prednosť pred dĺžkou cesty.</p>`,
+    edges: net.snap({ [net.key('400', '500')]: 'hl' }), nodes: { '500': 'active' }, table: table(), tableTitle: 'BGP tabuľky',
+    log: [['info', 'AS500: LOCAL_PREF 200 pre trasy od AS400']],
+  });
+
+  // ---- origination
+  best[ORIGIN] = decide(ORIGIN);
+  let queue = []; announce(ORIGIN, queue);
+  let w = 0;
+  const firstTexts = [
+    `<p><b>AS100</b> vlastní sieť <code>${PREFIX}</code> a ohlási ju susedom správou <b>UPDATE</b>. Správa nesie <b>celú cestu</b> (atribút AS_PATH) – zatiaľ len <code>100</code>.</p>`,
+  ];
+  while (queue.length) {
+    w++;
+    const r = wave(queue, 'Šírenie ciest');
+    const intro = w === 1 ? firstTexts[0]
+      : `<p>AS, ktoré zmenili najlepšiu cestu, ju ohlásia všetkým susedom – pred cestu <b>pridajú svoje číslo AS</b>. Prijímateľ skontroluje, či v ceste už nie je, a vyberie najlepšiu cestu.</p>`;
+    steps.push({
+      phase: 'Šírenie ciest', plainTitle: `UPDATE – vlna ${w}`,
+      title: w === 1 ? 'AS100 ohlasuje svoju sieť (UPDATE)' : `Šírenie UPDATE – vlna ${w}`,
+      text: intro + `<ul>${r.html}</ul>`,
+      edges: net.snap(bestStates()), nodes: Object.assign(w === 1 ? { [ORIGIN]: 'done' } : {}, r.nodes), notes: notes(), packets: r.pk,
+      table: table(r.changedAS), tableTitle: 'BGP tabuľky',
+      log: r.log,
+    });
+    queue = r.next;
+  }
+  steps.push({
+    phase: 'Šírenie ciest', plainTitle: 'Konvergencia',
+    title: '<span class="ok">Konvergencia ✓</span>',
+    text: `<p>Nikto už nemení najlepšiu cestu, správy sa neposielajú (BGP posiela UPDATE len pri zmene – <i>push model</i>, ohlásenie platí, kým nie je odvolané).</p>
+           <ul><li>Každý AS pozná <b>celú cestu</b> k sieti ${PREFIX}, nielen vzdialenosť.</li>
+           <li>Slučky sa odhalia okamžite – stačí nájsť vlastné číslo AS v AS_PATH.</li>
+           <li><b>AS500</b> používa dlhšiu cestu <code>${P(best['500'].path)}</code> namiesto <code>500 300 100</code> – kvôli politike.</li></ul>`,
+    edges: net.snap(bestStates()), nodes: {}, notes: notes(), table: table(), tableTitle: 'BGP tabuľky',
+    log: [['converge', 'KONVERGENCIA – všetky AS poznajú cestu k ' + PREFIX]],
+  });
+
+  // ---- failure of link 100–200
+  net.find('100', '200').up = false;
+  delete rib['200']['100']; delete rib['100']['200'];
+  const old200 = best['200'];
+  best['200'] = decide('200');
+  queue = []; announce('200', queue);
+  steps.push({
+    phase: 'Výpadok linky', plainTitle: 'Linka AS100–AS200 vypadla',
+    title: '<span class="bad">✂ Linka AS100 – AS200 vypadla</span>',
+    text: `<p>TCP relácia medzi AS100 a AS200 spadne (prestanú chodiť KEEPALIVE). AS200 zahodí všetky cesty naučené od AS100.</p>
+           <p>Vďaka tabuľke prijatých ciest má AS200 <b>okamžite náhradu</b>: <code>${P(old200.path)}</code> → <span class="hl"><code>${P(best['200'].path)}</code></span>. Nemusí nič „dopočítavať“.</p>
+           <p>Zmenu ohlási susedom novou správou UPDATE (tá implicitne nahradí starú cestu).</p>`,
+    edges: net.snap(bestStates()), nodes: { '200': 'active' }, notes: notes(), table: table(new Set(['200'])), tableTitle: 'BGP tabuľky',
+    log: [['err', 'Relácia AS100-AS200 down.'], ['update', `AS200: nová najlepšia cesta ${P(best['200'].path)}`]],
+  });
+  let f = 0;
+  while (queue.length) {
+    f++;
+    const r = wave(queue, 'Výpadok linky');
+    steps.push({
+      phase: 'Výpadok linky', plainTitle: `Opätovná konvergencia – vlna ${f}`,
+      title: `Šírenie zmeny – vlna ${f}`,
+      text: `<p>Nové cesty sa šíria sieťou. Ak niekto dostane cestu so svojím číslom AS, odmietne ju a zároveň zabudne starú cestu od toho suseda.</p><ul>${r.html}</ul>`,
+      edges: net.snap(bestStates()), nodes: r.nodes, notes: notes(), packets: r.pk,
+      table: table(r.changedAS), tableTitle: 'BGP tabuľky',
+      log: r.log,
+    });
+    queue = r.next;
+  }
+  steps.push({
+    phase: 'Výpadok linky', plainTitle: 'Znovu skonvergované',
+    title: '<span class="ok">Sieť znovu skonvergovala ✓</span>',
+    text: `<p>Po ${f} vlnách majú všetky AS platnú cestu bez slučiek. Na rozdiel od Distance Vector tu <b>nenastal count-to-infinity</b> – cesta obsahujúca vlastný AS sa hneď zahodí.</p>
+           <p>AS500 aj teraz drží politiku a ide cez AS400: <code>${P(best['500'].path)}</code>.</p>
+           <p class="muted">Pozn.: Vnútri AS sa cesty naučené cez eBGP rozdeľujú interným routrom pomocou IBGP a IGP (napr. OSPF).</p>`,
+    edges: net.snap(bestStates()), nodes: {}, notes: notes(), table: table(), tableTitle: 'BGP tabuľky',
+    log: [['converge', 'Opätovná KONVERGENCIA po výpadku.']],
+  });
+
+  return {
+    id: 'pv', tab: 'Path Vector', title: 'Path Vector', algo: '· AS_PATH + politiky',
+    desc: 'Variant Distance Vector – namiesto vzdialenosti sa posiela <b>celá cesta</b> (zoznam autonómnych systémov). Umožňuje jednoduchú detekciu slučiek a definíciu politík. Používa sa na smerovanie medzi AS (EGP).',
+    protocols: ['BGP', 'BGP-4'], legend, pos, colors, shape: 'as', steps,
+  };
 }
 
-// Init
-dvInit(); dvRenderTable(); drawGraph('canvas-dv', dvEdges);
-lsInit(); lsRenderTable(); drawGraph('canvas-ls', lsEdges);
+// ============================================================
+//  Bootstrapping
+// ============================================================
+const CONFIGS = [buildDV(), buildLS(), buildPV()];
+document.getElementById('panels').innerHTML = CONFIGS.map(panelHTML).join('');
+document.getElementById('tabs').innerHTML = CONFIGS.map(c => `<button class="tab" data-tab="${c.id}">${c.tab}</button>`).join('');
+const VIZ = {};
+CONFIGS.forEach(c => VIZ[c.id] = new Viz(c));
+let current = null;
+
+function switchTab(id) {
+  if (!VIZ[id]) id = 'dv';
+  if (current && VIZ[current]) VIZ[current].stop();
+  current = id;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + id));
+  VIZ[id].render();
+  if (location.hash !== '#' + id) history.replaceState(null, '', '#' + id);
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea, select')) return;
+  const v = VIZ[current];
+  if (e.key === 'ArrowRight') { v.stop(); v.go(v.i + 1); }
+  else if (e.key === 'ArrowLeft') { v.stop(); v.go(v.i - 1); }
+  else if (e.key === ' ') { e.preventDefault(); v.toggleAuto(); }
+});
+switchTab(location.hash.slice(1));
 </script>
 </body>
 </html>
